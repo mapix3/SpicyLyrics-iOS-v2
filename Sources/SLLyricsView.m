@@ -54,7 +54,7 @@
         self.backgroundColor = UIColor.clearColor;
         self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
 
-        _bg = mode == SLLyricsViewModeCompact ? [SLCardBackgroundView new] : [SLBackgroundView new];
+        _bg = [SLCardBackgroundView new];
         _bg.hidden = YES;
         [self addSubview:_bg];
 
