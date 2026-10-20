@@ -1,6 +1,6 @@
 Package: com.mapix30.spicylyricsios
 Name: SpicyLyricsiOS
-Version: 1.2.2
+Version: 1.2.3
 Architecture: iphoneos-arm
 Description: Spicy Lyrics для Spotify на iOS: пословная караоке-подсветка, динамический фон, интерлюдии, перемотка по строке.
 Maintainer: mapix30

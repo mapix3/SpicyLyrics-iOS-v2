@@ -6,6 +6,7 @@
 #import "Sources/SLRemote.h"
 #import "Sources/SLPlayerLyrics.h"
 #import "Sources/SLLyricsNetwork.h"
+#import "Sources/SLDebug.h"
 #import "Sources/SLLyricsProvider.h"
 
 static BOOL SLAddingHandler;
@@ -69,6 +70,9 @@ static void SLHookTaskResume(Class cls) {
         @try {
             NSURLRequest *r = task.currentRequest ?: task.originalRequest;
             if (r) [[SLLyricsProvider shared] observeRequest:r];
+            NSString *path = r.URL.path.lowercaseString;
+            if ([path containsString:@"lyric"] || [path containsString:@"scrollsita"])
+                SLLog(@"resume %@ %@%@ (%@)", r.HTTPMethod, r.URL.host, r.URL.path, NSStringFromClass([task class]));
         } @catch (NSException *e) {}
         ((void (*)(id, SEL))orig)(task, sel);
     });
@@ -120,12 +124,16 @@ static void SLInstallSpotifyHooks(void) {
     SLInstallLyricsConfigHook();
     SLInstallPlayerHooks();
     SLInstallLyricsNetworkHooks();
+    SLInstallDebugHooks();
 }
 
 %ctor {
     @autoreleasepool {
         SLInstallNetworkSniffer();
         // конфиг текста Spotify читает на старте — этот хук нужен до него
+        SLLog(@"launch: Spotify %@ (%@), safeMode=%d",
+              [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
+              [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"], SLSafeMode());
         if (!SLSafeMode()) SLInstallLyricsConfigHook();
         dispatch_async(dispatch_get_main_queue(), ^{ SLInstallSpotifyHooks(); });
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
@@ -137,6 +145,7 @@ static void SLInstallSpotifyHooks(void) {
                     usingBlock:^(NSNotification *n) {
             // небольшая задержка — Spotify иногда шлёт несколько обновлений подряд
             NSString *key = [SLNowPlaying shared].trackKey;
+            SLLog(@"track: %@ uri=%@", key, [SLNowPlaying shared].trackURI ?: @"-");
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 if ([key isEqualToString:[SLNowPlaying shared].trackKey]) SLPrefetch();
             });

@@ -2,6 +2,7 @@
 #import "SLLocalization.h"
 #import "SLSettings.h"
 #import "SLLyricsProvider.h"
+#import "SLDebug.h"
 
 extern UIWindow *SLKeyWindow(void);
 
@@ -96,6 +97,14 @@ extern UIWindow *SLKeyWindow(void);
     [reload addTarget:self action:@selector(reloadTapped) forControlEvents:UIControlEventTouchUpInside];
     [stack addArrangedSubview:reload];
 
+    UIButton *debug = [UIButton buttonWithType:UIButtonTypeSystem];
+    [debug setTitle:@"Export debug" forState:UIControlStateNormal];
+    debug.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
+    debug.tintColor = [UIColor colorWithWhite:1 alpha:0.7];
+    [debug.heightAnchor constraintEqualToConstant:40].active = YES;
+    [debug addTarget:self action:@selector(exportDebug:) forControlEvents:UIControlEventTouchUpInside];
+    [stack addArrangedSubview:debug];
+
     UILabel *hint = [self caption:SLLoc(@"hint")];
     hint.numberOfLines = 0;
     [stack addArrangedSubview:hint];
@@ -138,6 +147,8 @@ extern UIWindow *SLKeyWindow(void);
 - (void)bgVocalsChanged:(UISwitch *)s { [SLSettings shared].showBackgroundVocals = s.on; }
 - (void)glowChanged:(UISwitch *)s { [SLSettings shared].wordGlow = s.on; }
 - (void)bgChanged:(UISwitch *)s { [SLSettings shared].dynamicBackground = s.on; }
+- (void)exportDebug:(UIButton *)sender { SLDebugShare(self, sender); }
+
 - (void)reloadTapped {
     [self reloadAll];
     [self dismissViewControllerAnimated:YES completion:nil];

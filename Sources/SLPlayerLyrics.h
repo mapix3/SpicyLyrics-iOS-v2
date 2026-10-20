@@ -11,4 +11,7 @@ FOUNDATION_EXPORT void SLInstallPlayerHooks(void);
 /// Включает в конфиге Spotify запрос текста для всех треков. Ставится как можно раньше.
 FOUNDATION_EXPORT void SLInstallLyricsConfigHook(void);
 
+/// Диагностика: дампы экрана плеера.
+FOUNDATION_EXPORT void SLInstallDebugHooks(void);
+
 NS_ASSUME_NONNULL_END

@@ -5,6 +5,9 @@
 #import "SLLyricsViewController.h"
 #import "SLLocalization.h"
 #import "SLHook.h"
+#import "SLDebug.h"
+#import "SLNowPlaying.h"
+#import "SLSettingsViewController.h"
 
 typedef NS_ENUM(NSInteger, SLHostKind) {
     SLHostKindStrip = 0,   // строчка текста прямо на плеере (lyrics preview)
@@ -78,6 +81,9 @@ static CGFloat SLHostCornerRadius(UIView *host) {
         UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(open)];
         tap.delegate = self;
         [self addGestureRecognizer:tap];
+        UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(hold:)];
+        hold.minimumPressDuration = 0.6;
+        [self addGestureRecognizer:hold];
 
         self.isAccessibilityElement = YES;
         self.accessibilityLabel = SLLoc(@"lyrics");
@@ -123,6 +129,11 @@ static CGFloat SLHostCornerRadius(UIView *host) {
         CGFloat r = SLHostCornerRadius(host);
         if (fabs(self.layer.cornerRadius - r) > 0.5) self.layer.cornerRadius = r;
     }
+}
+
+- (void)hold:(UILongPressGestureRecognizer *)g {
+    if (g.state != UIGestureRecognizerStateBegan) return;
+    [SLSettingsViewController presentFrom:nil];
 }
 
 - (void)open {
@@ -178,6 +189,7 @@ static void SLAttach(UIView *host, SLHostKind kind) {
         }
     }
     if (!ov) {
+        SLLog(@"overlay %@ on %@ %@", kind == SLHostKindCard ? @"card" : @"strip", NSStringFromClass([host class]), NSStringFromCGRect(host.frame));
         ov = [[SLPlayerLyricsOverlay alloc] initWithKind:kind];
         objc_setAssociatedObject(host, SLOverlayKey, ov, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
@@ -228,11 +240,34 @@ void SLInstallLyricsConfigHook(void) {
             id obj = ((id (*)(id, SEL, id))orig)(me, sel, provider);
             if (obj) {
                 uint8_t *p = (uint8_t *)(__bridge void *)obj + offset;
+                SLLog(@"lyrics config: enableHasLyricsCheckBypass was %d", *p);
                 if (*p <= 1) *p = 1;   // Bool — пишем только если там действительно 0/1
             }
             return obj;
         };
     });
+}
+
+void SLInstallDebugHooks(void) {
+    static BOOL done;
+    if (done) return;
+    Class cls = SLFindClass(@[@"_TtC21NowPlaying_ScrollImpl23NPVScrollViewController", @"NowPlaying_ScrollImpl.NPVScrollViewController"]);
+    SEL sel = @selector(viewDidAppear:);
+    done = SLHook(cls, sel, ^id(IMP orig) {
+        return ^(UIViewController *vc, BOOL animated) {
+            ((void (*)(id, SEL, BOOL))orig)(vc, sel, animated);
+            __weak UIViewController *weakVC = vc;
+            for (NSNumber *delay in @[@1.5, @5.0]) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    UIViewController *v = weakVC;
+                    if (!v.viewIfLoaded.window) return;
+                    NSString *title = [[SLNowPlaying shared].title ?: @"" stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+                    SLDebugDumpViews([NSString stringWithFormat:@"npv-%@", title], v.view);
+                });
+            }
+        };
+    });
+    SLLog(@"debug hooks: NPVScrollViewController %@", done ? @"ok" : @"missing");
 }
 
 void SLInstallPlayerHooks(void) {

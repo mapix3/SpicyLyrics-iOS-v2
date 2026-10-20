@@ -3,10 +3,23 @@
 #import "SLHook.h"
 #import "SLLyricsProvider.h"
 #import "SLSpotifyLyrics.h"
+#import "SLDebug.h"
+#import "SLNowPlaying.h"
 
 static const void *SLReplaceKey = &SLReplaceKey;   // NSData — наш ответ вместо оригинального
 static const void *SLCaptureKey = &SLCaptureKey;   // NSMutableData — копия настоящего ответа Spotify
 static const void *SLTrackKey = &SLTrackKey;       // id трека
+static const void *SLDumpKey = &SLDumpKey;         // диагностика: сохранить тело ответа под этим именем
+
+/// Диагностика: всё, что связано с текстом и карточками плеера.
+static NSString *SLInterestingPath(id task) {
+    if (![task isKindOfClass:[NSURLSessionTask class]]) return nil;
+    NSURLRequest *r = [(NSURLSessionTask *)task currentRequest] ?: [(NSURLSessionTask *)task originalRequest];
+    NSString *path = r.URL.path.lowercaseString;
+    if ([path containsString:@"lyric"] || [path containsString:@"scrollsita"] || [path containsString:@"nowplaying"] || [path containsString:@"now-playing"])
+        return [NSString stringWithFormat:@"%@ %@%@", r.HTTPMethod, r.URL.host, r.URL.path];
+    return nil;
+}
 
 static const double SLSpicyWait = 8.0;             // сколько держим ответ Spotify, пока ждём Spicy
 
@@ -32,8 +45,18 @@ static void SLHookDelegate(Class cls) {
         return ^(id me, NSURLSession *session, NSURLSessionDataTask *task, NSURLResponse *response, id handler) {
             NSString *tid = SLLyricsTrackId(task);
             NSInteger status = [response isKindOfClass:[NSHTTPURLResponse class]] ? [(NSHTTPURLResponse *)response statusCode] : 0;
+            NSString *interesting = SLInterestingPath(task);
+            if (interesting) {
+                SLLog(@"HTTP %ld %@ [%@] track=\"%@\"", (long)status, interesting, NSStringFromClass([me class]), [SLNowPlaying shared].title ?: @"");
+                if (!tid && status == 200) {
+                    NSString *p = [interesting.lowercaseString containsString:@"scrollsita"] ? @"scrollsita" : @"other";
+                    objc_setAssociatedObject(task, SLCaptureKey, [NSMutableData data], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                    objc_setAssociatedObject(task, SLDumpKey, p, OBJC_ASSOCIATION_COPY_NONATOMIC);
+                }
+            }
             if (!tid || (status != 200 && status != 404)) { call(me, selResp, session, task, response, handler); return; }
 
+            SLLog(@"lyrics request track=%@ status=%ld", tid, (long)status);
             if (status == 200) {
                 // у Spotify текст есть — оставляем как есть, но запоминаем как запасной
                 objc_setAssociatedObject(task, SLCaptureKey, [NSMutableData data], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -53,6 +76,7 @@ static void SLHookDelegate(Class cls) {
                                                                     statusCode:200 HTTPVersion:@"HTTP/2"
                                                                   headerFields:@{ @"Content-Type": @"application/protobuf" }];
                 objc_setAssociatedObject(task, SLReplaceKey, body, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                SLLog(@"lyrics 404 -> 200 track=%@ spicy=%@ (%lu bytes)", tid, ly ? @"yes" : @"no", (unsigned long)body.length);
                 call(me, selResp, session, task, ok ?: response, handler);
             };
             [[SLLyricsProvider shared] spicyLyricsForTrackId:tid completion:^(SLLyrics *ly, NSString *err) { respond(ly); }];
@@ -86,8 +110,11 @@ static void SLHookDelegate(Class cls) {
             NSMutableData *capture = objc_getAssociatedObject(task, SLCaptureKey);
             if (capture) {
                 NSString *tid = objc_getAssociatedObject(task, SLTrackKey);
+                NSString *dump = objc_getAssociatedObject(task, SLDumpKey);
                 objc_setAssociatedObject(task, SLCaptureKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                 if (!error && tid) [[SLLyricsProvider shared] storeSpotifyResponse:[capture copy] trackId:tid];
+                if (!error && tid) SLDebugSaveBody(@"spotify-lyrics", capture);
+                if (!error && dump) SLDebugSaveBody(dump, capture);
             }
             call(me, selDone, session, task, error);
         };
