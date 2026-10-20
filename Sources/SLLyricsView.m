@@ -17,7 +17,7 @@
 @end
 
 @implementation SLLyricsView {
-    SLBackgroundView *_bg;
+    UIView<SLBackground> *_bg;
     UIView *_scrollHost;
     UIScrollView *_scroll;
     UILabel *_statusLabel, *_sourceLabel;
@@ -54,7 +54,7 @@
         self.backgroundColor = UIColor.clearColor;
         self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
 
-        _bg = [SLBackgroundView new];
+        _bg = mode == SLLyricsViewModeCompact ? [SLCardBackgroundView new] : [SLBackgroundView new];
         _bg.hidden = YES;
         [self addSubview:_bg];
 

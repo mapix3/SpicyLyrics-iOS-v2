@@ -2,7 +2,17 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface SLBackgroundView : UIView
+@protocol SLBackground <NSObject>
+@property (nonatomic) BOOL animated;
+- (void)setArtwork:(nullable UIImage *)image;
+@end
+
+@interface SLBackgroundView : UIView <SLBackground>
+@property (nonatomic) BOOL animated;
+- (void)setArtwork:(nullable UIImage *)image;
+@end
+
+@interface SLCardBackgroundView : UIView <SLBackground>
 @property (nonatomic) BOOL animated;
 - (void)setArtwork:(nullable UIImage *)image;
 @end
