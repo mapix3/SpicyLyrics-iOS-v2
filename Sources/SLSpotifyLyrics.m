@@ -172,24 +172,36 @@ SLLyrics *SLLyricsFromSpotifyResponse(NSData *data) {
 #pragma mark - SLLyrics → Spotify
 
 NSData *SLSpotifyResponseFromLyrics(SLLyrics *lyrics) {
+    // Повторяет структуру настоящего ответа Spotify:
+    //   1 syncType, 2 строки, 3 провайдер, 4 id у провайдера, 5 имя провайдера, 10 язык, 17 превью (первые 5 строк)
     BOOL synced = lyrics && lyrics.type != SLLyricsTypeStatic;
-    NSMutableData *data = [NSMutableData data];
-    SLPutVarintField(data, 1, synced ? 1 : 0);
-    NSUInteger count = 0;
+    NSMutableArray<NSData *> *lines = [NSMutableArray array];
+    NSMutableString *all = [NSMutableString string];
     for (SLLine *line in lyrics.lines) {
         if (line.isInterlude || !line.text.length) continue;
         NSMutableData *l = [NSMutableData data];
-        if (synced) SLPutVarintField(l, 1, (uint64_t)MAX(0, (int64_t)llround(line.start * 1000)));
+        SLPutVarintField(l, 1, synced ? (uint64_t)MAX(0, (int64_t)llround(line.start * 1000)) : 0);
         SLPutStringField(l, 2, line.text);
-        SLPutBytesField(data, 2, l);
-        count++;
+        [lines addObject:l];
+        if (all.length < 2000) [all appendFormat:@"%@\n", line.text];
     }
-    if (!count) {
+    if (!lines.count) {
         NSMutableData *l = [NSMutableData data];
+        SLPutVarintField(l, 1, 0);
         SLPutStringField(l, 2, @"♪");
-        SLPutBytesField(data, 2, l);
+        [lines addObject:l];
     }
+    NSString *lang = all.length ? [NSLinguisticTagger dominantLanguageForString:all] : nil;
+    if (!lang.length || [lang isEqualToString:@"und"]) lang = @"en";
+
+    NSMutableData *data = [NSMutableData data];
+    SLPutVarintField(data, 1, synced ? 1 : 0);
+    for (NSData *l in lines) SLPutBytesField(data, 2, l);
+    SLPutStringField(data, 3, @"SpicyLyrics");
+    SLPutStringField(data, 4, @"0");
     SLPutStringField(data, 5, @"Spicy Lyrics");
+    SLPutStringField(data, 10, lang);
+    for (NSUInteger i = 0; i < MIN((NSUInteger)5, lines.count); i++) SLPutBytesField(data, 17, lines[i]);
 
     NSMutableData *colors = [NSMutableData data];
     // int32 — отрицательные значения кодируются 64-битным varint, как у самого Spotify

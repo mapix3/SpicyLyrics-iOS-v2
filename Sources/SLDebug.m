@@ -7,7 +7,7 @@ static dispatch_queue_t SLDebugQueue(void) {
     return q;
 }
 
-/// Папка пересоздаётся при каждом запуске Spotify — в ней только текущая сессия.
+/// Текущая сессия; лог прошлого запуска сохраняется как prev-log.txt (на случай вылета).
 static NSURL *SLDebugDir(void) {
     static NSURL *dir;
     static dispatch_once_t once;
@@ -15,8 +15,10 @@ static NSURL *SLDebugDir(void) {
         NSFileManager *fm = NSFileManager.defaultManager;
         NSURL *docs = [fm URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
         dir = [docs URLByAppendingPathComponent:@"SpicyLyricsiOS-debug" isDirectory:YES];
+        NSData *prev = [NSData dataWithContentsOfURL:[dir URLByAppendingPathComponent:@"log.txt"]];
         [fm removeItemAtURL:dir error:nil];
         [fm createDirectoryAtURL:dir withIntermediateDirectories:YES attributes:nil error:nil];
+        if (prev) [prev writeToURL:[dir URLByAppendingPathComponent:@"prev-log.txt"] atomically:NO];
     });
     return dir;
 }
@@ -38,7 +40,8 @@ void SLLog(NSString *format, ...) {
     va_end(args);
     NSString *stamp = [NSString stringWithFormat:@"%.3f", CFAbsoluteTimeGetCurrent()];
     BOOL main = [NSThread isMainThread];
-    dispatch_async(SLDebugQueue(), ^{
+    // синхронно — чтобы строка точно попала в файл, даже если следом Spotify упадёт
+    dispatch_sync(SLDebugQueue(), ^{
         SLAppend(@"log.txt", [NSString stringWithFormat:@"%@ %@ %@\n", stamp, main ? @"[M]" : @"[B]", msg]);
     });
 }

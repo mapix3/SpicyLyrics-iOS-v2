@@ -8,6 +8,7 @@
 #import "SLDebug.h"
 #import "SLNowPlaying.h"
 #import "SLSettingsViewController.h"
+#import <objc/message.h>
 
 typedef NS_ENUM(NSInteger, SLHostKind) {
     SLHostKindStrip = 0,   // строчка текста прямо на плеере (lyrics preview)
@@ -246,6 +247,66 @@ void SLInstallLyricsConfigHook(void) {
             return obj;
         };
     });
+}
+
+/// Только обычные треки (не реклама, не подкасты, не локальные файлы).
+static BOOL SLIsMusicTrack(id track) {
+    static SEL uriSel;
+    if (!uriSel) uriSel = NSSelectorFromString(@"URI");
+    if (![track respondsToSelector:uriSel]) return NO;
+    id uri = ((id (*)(id, SEL))objc_msgSend)(track, uriSel);
+    NSString *s = [uri isKindOfClass:[NSURL class]] ? [uri absoluteString] : ([uri isKindOfClass:[NSString class]] ? uri : nil);
+    return [s hasPrefix:@"spotify:track:"];
+}
+
+static void SLNoteForced(id track, NSString *via) {
+    static NSMutableSet *seen;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ seen = [NSMutableSet set]; });
+    NSString *key = [NSString stringWithFormat:@"%p-%@", track, via];
+    @synchronized (seen) {
+        if ([seen containsObject:key] || seen.count > 200) return;
+        [seen addObject:key];
+    }
+    SLLog(@"has_lyrics forced via %@", via);
+}
+
+void SLInstallHasLyricsHooks(void) {
+    static BOOL done;
+    if (done) return;
+    done = YES;
+    Class cls = NSClassFromString(@"SPTPlayerTrack");
+    if (!cls) { SLLog(@"has_lyrics hooks: SPTPlayerTrack missing"); return; }
+    SEL hasLyrics = NSSelectorFromString(@"spt_hasLyrics");
+    SEL metaKey = NSSelectorFromString(@"metadataValueForKey:");
+    SEL meta = NSSelectorFromString(@"metadata");
+    BOOL a = SLHook(cls, hasLyrics, ^id(IMP orig) {
+        return ^BOOL(id track) {
+            if (((BOOL (*)(id, SEL))orig)(track, hasLyrics)) return YES;
+            if (!SLIsMusicTrack(track)) return NO;
+            SLNoteForced(track, @"spt_hasLyrics");
+            return YES;
+        };
+    });
+    BOOL b = SLHook(cls, metaKey, ^id(IMP orig) {
+        return ^id(id track, id key) {
+            id v = ((id (*)(id, SEL, id))orig)(track, metaKey, key);
+            if (![key isKindOfClass:[NSString class]] || ![key isEqualToString:@"has_lyrics"]) return v;
+            if ([v isEqual:@"true"] || !SLIsMusicTrack(track)) return v;
+            SLNoteForced(track, @"metadataValueForKey");
+            return @"true";
+        };
+    });
+    BOOL c = SLHook(cls, meta, ^id(IMP orig) {
+        return ^NSDictionary *(id track) {
+            NSDictionary *m = ((NSDictionary *(*)(id, SEL))orig)(track, meta);
+            if (![m isKindOfClass:[NSDictionary class]] || [m[@"has_lyrics"] isEqual:@"true"] || !SLIsMusicTrack(track)) return m;
+            NSMutableDictionary *mm = [m mutableCopy];
+            mm[@"has_lyrics"] = @"true";
+            return [mm copy];
+        };
+    });
+    SLLog(@"has_lyrics hooks: spt_hasLyrics=%d metadataValueForKey=%d metadata=%d", a, b, c);
 }
 
 void SLInstallDebugHooks(void) {
