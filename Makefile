@@ -8,7 +8,7 @@ THEOS_PACKAGE_SCHEME ?= rootless
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = SpicyLyricsiOS
-SpicyLyricsiOS_FILES = Tweak.x $(wildcard Sources/*.m)
+SpicyLyricsiOS_FILES = Tweak.x $(wildcard Sources/*.m) $(wildcard Sources/*.c)
 SpicyLyricsiOS_CFLAGS = -fobjc-arc -ISources -Wno-deprecated-declarations
 SpicyLyricsiOS_FRAMEWORKS = UIKit MediaPlayer QuartzCore CoreImage
 

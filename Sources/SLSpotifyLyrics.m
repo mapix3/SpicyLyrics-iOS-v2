@@ -192,9 +192,10 @@ NSData *SLSpotifyResponseFromLyrics(SLLyrics *lyrics) {
     SLPutStringField(data, 5, @"Spicy Lyrics");
 
     NSMutableData *colors = [NSMutableData data];
-    SLPutVarintField(colors, 1, 0xFF3A3A3Au);
-    SLPutVarintField(colors, 2, 0xFF000000u);
-    SLPutVarintField(colors, 3, 0xFFFFFFFFu);
+    // int32 — отрицательные значения кодируются 64-битным varint, как у самого Spotify
+    SLPutVarintField(colors, 1, (uint64_t)(int64_t)(int32_t)0xFF3A3A3Au);
+    SLPutVarintField(colors, 2, (uint64_t)(int64_t)(int32_t)0xFF000000u);
+    SLPutVarintField(colors, 3, (uint64_t)(int64_t)(int32_t)0xFFFFFFFFu);
 
     NSMutableData *out = [NSMutableData data];
     SLPutBytesField(out, 1, data);
