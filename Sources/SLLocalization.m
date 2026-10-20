@@ -23,7 +23,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Background vocals",
             @"glow": @"Syllable glow",
             @"anim_bg": @"Animated background",
-            @"bubble": @"Floating button",
             @"reload": @"Reload lyrics",
             @"hint": @"Syllable-synced lyrics from Spicy Lyrics (spicylyrics.org). Long-press the lyrics to open these settings.",
             @"err_no_key": @"Spicy Lyrics: no API key in this build",
@@ -54,7 +53,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Бэк-вокал",
             @"glow": @"Свечение слогов",
             @"anim_bg": @"Анимированный фон",
-            @"bubble": @"Плавающая кнопка",
             @"reload": @"Перезагрузить текст",
             @"hint": @"Тексты с таймингом по слогам — из Spicy Lyrics (spicylyrics.org). Удержание на тексте открывает эти настройки.",
             @"err_no_key": @"Spicy Lyrics: в сборке нет ключа API",
@@ -85,7 +83,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Бек-вокал",
             @"glow": @"Світіння складів",
             @"anim_bg": @"Анімований фон",
-            @"bubble": @"Плаваюча кнопка",
             @"reload": @"Перезавантажити текст",
             @"hint": @"Тексти з таймінгом по складах — зі Spicy Lyrics (spicylyrics.org). Утримуй текст, щоб відкрити ці налаштування.",
             @"err_no_key": @"Spicy Lyrics: у збірці немає ключа API",
@@ -116,7 +113,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Backgroundgesang",
             @"glow": @"Silben-Leuchten",
             @"anim_bg": @"Animierter Hintergrund",
-            @"bubble": @"Schwebende Taste",
             @"reload": @"Songtext neu laden",
             @"hint": @"Silbengenau synchronisierte Songtexte von Spicy Lyrics (spicylyrics.org). Halte den Text gedrückt, um diese Einstellungen zu öffnen.",
             @"err_no_key": @"Spicy Lyrics: kein API-Schlüssel in diesem Build",
@@ -147,7 +143,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Coros",
             @"glow": @"Brillo de sílabas",
             @"anim_bg": @"Fondo animado",
-            @"bubble": @"Botón flotante",
             @"reload": @"Recargar letra",
             @"hint": @"Letras sincronizadas por sílabas de Spicy Lyrics (spicylyrics.org). Mantén pulsada la letra para abrir estos ajustes.",
             @"err_no_key": @"Spicy Lyrics: esta versión no tiene clave de API",
@@ -178,7 +173,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Chœurs",
             @"glow": @"Lueur des syllabes",
             @"anim_bg": @"Fond animé",
-            @"bubble": @"Bouton flottant",
             @"reload": @"Recharger les paroles",
             @"hint": @"Paroles synchronisées syllabe par syllabe, fournies par Spicy Lyrics (spicylyrics.org). Appuie longuement sur les paroles pour ouvrir ces réglages.",
             @"err_no_key": @"Spicy Lyrics : aucune clé API dans cette version",
@@ -209,7 +203,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Vocais de apoio",
             @"glow": @"Brilho das sílabas",
             @"anim_bg": @"Fundo animado",
-            @"bubble": @"Botão flutuante",
             @"reload": @"Recarregar letra",
             @"hint": @"Letras sincronizadas por sílaba do Spicy Lyrics (spicylyrics.org). Toque e segure a letra para abrir estes ajustes.",
             @"err_no_key": @"Spicy Lyrics: esta versão não tem chave de API",
@@ -240,7 +233,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Cori",
             @"glow": @"Bagliore sillabe",
             @"anim_bg": @"Sfondo animato",
-            @"bubble": @"Pulsante mobile",
             @"reload": @"Ricarica testo",
             @"hint": @"Testi sincronizzati per sillaba da Spicy Lyrics (spicylyrics.org). Tieni premuto sul testo per aprire queste impostazioni.",
             @"err_no_key": @"Spicy Lyrics: nessuna chiave API in questa build",
@@ -271,7 +263,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Chórki",
             @"glow": @"Poświata sylab",
             @"anim_bg": @"Animowane tło",
-            @"bubble": @"Pływający przycisk",
             @"reload": @"Wczytaj tekst ponownie",
             @"hint": @"Teksty synchronizowane co do sylaby ze Spicy Lyrics (spicylyrics.org). Przytrzymaj tekst, aby otworzyć te ustawienia.",
             @"err_no_key": @"Spicy Lyrics: brak klucza API w tej wersji",
@@ -302,7 +293,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"Arka vokaller",
             @"glow": @"Hece parlaması",
             @"anim_bg": @"Hareketli arka plan",
-            @"bubble": @"Kayan düğme",
             @"reload": @"Sözleri yeniden yükle",
             @"hint": @"Hece hece senkronize sözler Spicy Lyrics'ten (spicylyrics.org). Bu ayarları açmak için sözlere basılı tut.",
             @"err_no_key": @"Spicy Lyrics: bu sürümde API anahtarı yok",
@@ -333,7 +323,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"バックボーカル",
             @"glow": @"音節のグロー",
             @"anim_bg": @"アニメーション背景",
-            @"bubble": @"フローティングボタン",
             @"reload": @"歌詞を再読み込み",
             @"hint": @"Spicy Lyrics（spicylyrics.org）の音節単位で同期した歌詞です。歌詞を長押しするとこの設定が開きます。",
             @"err_no_key": @"Spicy Lyrics: このビルドにはAPIキーがありません",
@@ -364,7 +353,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"백보컬",
             @"glow": @"음절 글로우",
             @"anim_bg": @"움직이는 배경",
-            @"bubble": @"플로팅 버튼",
             @"reload": @"가사 다시 불러오기",
             @"hint": @"Spicy Lyrics(spicylyrics.org)의 음절 단위 싱크 가사입니다. 가사를 길게 누르면 이 설정이 열립니다.",
             @"err_no_key": @"Spicy Lyrics: 이 빌드에 API 키가 없습니다",
@@ -395,7 +383,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"和声",
             @"glow": @"音节发光",
             @"anim_bg": @"动态背景",
-            @"bubble": @"悬浮按钮",
             @"reload": @"重新加载歌词",
             @"hint": @"来自 Spicy Lyrics（spicylyrics.org）的逐音节同步歌词。长按歌词可打开这些设置。",
             @"err_no_key": @"Spicy Lyrics：此版本没有 API 密钥",
@@ -426,7 +413,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"bg_vocals": @"和聲",
             @"glow": @"音節發光",
             @"anim_bg": @"動態背景",
-            @"bubble": @"浮動按鈕",
             @"reload": @"重新載入歌詞",
             @"hint": @"來自 Spicy Lyrics（spicylyrics.org）的逐音節同步歌詞。長按歌詞即可開啟這些設定。",
             @"err_no_key": @"Spicy Lyrics：此版本沒有 API 金鑰",
@@ -439,6 +425,76 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
             @"no_token": @"沒有權杖",
             @"error_n": @"錯誤 %ld",
         },
+        };
+    });
+    return t;
+}
+
+/// Строки экрана плеера — на всех языках, на которых бывает интерфейс Spotify.
+static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLPlayerTables(void) {
+    static NSDictionary *t;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        t = @{
+        @"en": @{ @"no_lyrics": @"No lyrics found for this song", @"lyrics": @"Lyrics" },
+        @"ru": @{ @"no_lyrics": @"Для этой песни текст не найден", @"lyrics": @"Текст песни" },
+        @"uk": @{ @"no_lyrics": @"Для цієї пісні текст не знайдено", @"lyrics": @"Текст пісні" },
+        @"de": @{ @"no_lyrics": @"Für diesen Song wurde kein Songtext gefunden", @"lyrics": @"Songtext" },
+        @"es": @{ @"no_lyrics": @"No se encontró la letra de esta canción", @"lyrics": @"Letra" },
+        @"fr": @{ @"no_lyrics": @"Aucune parole trouvée pour ce titre", @"lyrics": @"Paroles" },
+        @"pt": @{ @"no_lyrics": @"Nenhuma letra encontrada para esta música", @"lyrics": @"Letra" },
+        @"it": @{ @"no_lyrics": @"Nessun testo trovato per questo brano", @"lyrics": @"Testo" },
+        @"pl": @{ @"no_lyrics": @"Nie znaleziono tekstu tego utworu", @"lyrics": @"Tekst" },
+        @"tr": @{ @"no_lyrics": @"Bu şarkı için şarkı sözü bulunamadı", @"lyrics": @"Şarkı sözleri" },
+        @"ja": @{ @"no_lyrics": @"この曲の歌詞は見つかりませんでした", @"lyrics": @"歌詞" },
+        @"ko": @{ @"no_lyrics": @"이 곡의 가사를 찾을 수 없습니다", @"lyrics": @"가사" },
+        @"zh-Hans": @{ @"no_lyrics": @"未找到这首歌的歌词", @"lyrics": @"歌词" },
+        @"zh-Hant": @{ @"no_lyrics": @"找不到這首歌的歌詞", @"lyrics": @"歌詞" },
+        @"nl": @{ @"no_lyrics": @"Geen songtekst gevonden voor dit nummer", @"lyrics": @"Songtekst" },
+        @"sv": @{ @"no_lyrics": @"Ingen låttext hittades för den här låten", @"lyrics": @"Låttext" },
+        @"da": @{ @"no_lyrics": @"Der blev ikke fundet nogen sangtekst til denne sang", @"lyrics": @"Sangtekst" },
+        @"nb": @{ @"no_lyrics": @"Fant ingen sangtekst for denne sangen", @"lyrics": @"Sangtekst" },
+        @"fi": @{ @"no_lyrics": @"Tälle kappaleelle ei löytynyt sanoituksia", @"lyrics": @"Sanoitukset" },
+        @"cs": @{ @"no_lyrics": @"Pro tuto skladbu nebyl nalezen text", @"lyrics": @"Text" },
+        @"sk": @{ @"no_lyrics": @"Pre túto skladbu sa nenašiel text", @"lyrics": @"Text" },
+        @"hu": @{ @"no_lyrics": @"Ehhez a dalhoz nem található dalszöveg", @"lyrics": @"Dalszöveg" },
+        @"ro": @{ @"no_lyrics": @"Nu s-au găsit versuri pentru această melodie", @"lyrics": @"Versuri" },
+        @"bg": @{ @"no_lyrics": @"Не е намерен текст за тази песен", @"lyrics": @"Текст" },
+        @"hr": @{ @"no_lyrics": @"Za ovu pjesmu nije pronađen tekst", @"lyrics": @"Tekst" },
+        @"sr": @{ @"no_lyrics": @"Za ovu pesmu nije pronađen tekst", @"lyrics": @"Tekst" },
+        @"sl": @{ @"no_lyrics": @"Za to skladbo ni bilo najdenega besedila", @"lyrics": @"Besedilo" },
+        @"lt": @{ @"no_lyrics": @"Šiai dainai žodžių nerasta", @"lyrics": @"Žodžiai" },
+        @"lv": @{ @"no_lyrics": @"Šai dziesmai vārdi netika atrasti", @"lyrics": @"Dziesmas vārdi" },
+        @"et": @{ @"no_lyrics": @"Selle laulu sõnu ei leitud", @"lyrics": @"Laulusõnad" },
+        @"el": @{ @"no_lyrics": @"Δεν βρέθηκαν στίχοι για αυτό το τραγούδι", @"lyrics": @"Στίχοι" },
+        @"he": @{ @"no_lyrics": @"לא נמצאו מילים לשיר הזה", @"lyrics": @"מילים" },
+        @"ar": @{ @"no_lyrics": @"لم يتم العثور على كلمات لهذه الأغنية", @"lyrics": @"الكلمات" },
+        @"fa": @{ @"no_lyrics": @"متن این آهنگ پیدا نشد", @"lyrics": @"متن آهنگ" },
+        @"hi": @{ @"no_lyrics": @"इस गाने के बोल नहीं मिले", @"lyrics": @"बोल" },
+        @"bn": @{ @"no_lyrics": @"এই গানের লিরিক্স পাওয়া যায়নি", @"lyrics": @"লিরিক্স" },
+        @"id": @{ @"no_lyrics": @"Lirik untuk lagu ini tidak ditemukan", @"lyrics": @"Lirik" },
+        @"ms": @{ @"no_lyrics": @"Lirik untuk lagu ini tidak ditemui", @"lyrics": @"Lirik" },
+        @"th": @{ @"no_lyrics": @"ไม่พบเนื้อเพลงของเพลงนี้", @"lyrics": @"เนื้อเพลง" },
+        @"vi": @{ @"no_lyrics": @"Không tìm thấy lời cho bài hát này", @"lyrics": @"Lời bài hát" },
+        @"fil": @{ @"no_lyrics": @"Walang nahanap na lyrics para sa kantang ito", @"lyrics": @"Lyrics" },
+        @"ca": @{ @"no_lyrics": @"No s'ha trobat la lletra d'aquesta cançó", @"lyrics": @"Lletra" },
+        @"sw": @{ @"no_lyrics": @"Hakuna maneno ya wimbo huu yaliyopatikana", @"lyrics": @"Maneno ya wimbo" },
+        @"af": @{ @"no_lyrics": @"Geen lirieke vir hierdie liedjie gevind nie", @"lyrics": @"Lirieke" },
+        @"am": @{ @"no_lyrics": @"ለዚህ ዘፈን ግጥም አልተገኘም", @"lyrics": @"ግጥም" },
+        @"az": @{ @"no_lyrics": @"Bu mahnı üçün söz tapılmadı", @"lyrics": @"Sözlər" },
+        @"bs": @{ @"no_lyrics": @"Za ovu pjesmu nije pronađen tekst", @"lyrics": @"Tekst" },
+        @"eu": @{ @"no_lyrics": @"Ez da abesti honen letrarik aurkitu", @"lyrics": @"Letra" },
+        @"gl": @{ @"no_lyrics": @"Non se atopou a letra desta canción", @"lyrics": @"Letra" },
+        @"is": @{ @"no_lyrics": @"Enginn texti fannst fyrir þetta lag", @"lyrics": @"Texti" },
+        @"mk": @{ @"no_lyrics": @"Не е пронајден текст за оваа песна", @"lyrics": @"Текст" },
+        @"ur": @{ @"no_lyrics": @"اس گانے کے بول نہیں ملے", @"lyrics": @"بول" },
+        @"ta": @{ @"no_lyrics": @"இந்தப் பாடலுக்கான வரிகள் கிடைக்கவில்லை", @"lyrics": @"பாடல் வரிகள்" },
+        @"te": @{ @"no_lyrics": @"ఈ పాటకు సాహిత్యం కనుగొనబడలేదు", @"lyrics": @"సాహిత్యం" },
+        @"mr": @{ @"no_lyrics": @"या गाण्याचे बोल सापडले नाहीत", @"lyrics": @"बोल" },
+        @"gu": @{ @"no_lyrics": @"આ ગીતના શબ્દો મળ્યા નથી", @"lyrics": @"ગીતના શબ્દો" },
+        @"ne": @{ @"no_lyrics": @"यस गीतको शब्द भेटिएन", @"lyrics": @"गीतका शब्द" },
+        @"pa": @{ @"no_lyrics": @"ਇਸ ਗੀਤ ਦੇ ਬੋਲ ਨਹੀਂ ਮਿਲੇ", @"lyrics": @"ਬੋਲ" },
+        @"zu": @{ @"no_lyrics": @"Awekho amagama atholakele kule ngoma", @"lyrics": @"Amagama" },
         };
     });
     return t;
@@ -457,15 +513,17 @@ NSString *SLLanguage(void) {
             lang = trad ? @"zh-Hant" : @"zh-Hans";
         } else {
             lang = [l componentsSeparatedByString:@"-"].firstObject ?: @"en";
-            if ([lang isEqualToString:@"nb"] || [lang isEqualToString:@"no"]) lang = @"en";
+            NSDictionary *alias = @{ @"no": @"nb", @"nn": @"nb", @"iw": @"he", @"in": @"id", @"tl": @"fil" };
+            if (alias[lang]) lang = alias[lang];
         }
-        if (!SLTables()[lang]) lang = @"en";
     });
     return lang;
 }
 
 NSString *SLLoc(NSString *key) {
-    return SLTables()[SLLanguage()][key] ?: SLTables()[@"en"][key] ?: key;
+    NSString *lang = SLLanguage();
+    return SLTables()[lang][key] ?: SLPlayerTables()[lang][key]
+        ?: SLTables()[@"en"][key] ?: SLPlayerTables()[@"en"][key] ?: key;
 }
 
 NSString *SLLocFormat(NSString *key, ...) {

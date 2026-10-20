@@ -9,10 +9,8 @@ extern NSNotificationName const SLSettingsDidChangeNotification;
 @property (nonatomic) NSInteger syncOffsetMs;
 @property (nonatomic) CGFloat fontScale;
 @property (nonatomic) BOOL dynamicBackground;
-@property (nonatomic) BOOL showBubble;
 @property (nonatomic) BOOL wordGlow;
 @property (nonatomic) BOOL showBackgroundVocals;
-@property (nonatomic) CGPoint bubbleCenter;   // {0,0} = по умолчанию
 @end
 
 NS_ASSUME_NONNULL_END

@@ -4,7 +4,7 @@
 #import <objc/runtime.h>
 #import "Sources/SLNowPlaying.h"
 #import "Sources/SLRemote.h"
-#import "Sources/SLBubble.h"
+#import "Sources/SLPlayerLyrics.h"
 #import "Sources/SLLyricsProvider.h"
 
 static BOOL SLAddingHandler;
@@ -95,12 +95,11 @@ static void SLPrefetch(void) {
 %ctor {
     @autoreleasepool {
         SLInstallNetworkSniffer();
+        SLInstallPlayerHooks();
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
         [nc addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue]
                     usingBlock:^(NSNotification *n) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                [SLBubble install];
-            });
+            SLInstallPlayerHooks();   // на случай, если классы Spotify подгрузились позже
         }];
         [nc addObserverForName:SLTrackDidChangeNotification object:nil queue:[NSOperationQueue mainQueue]
                     usingBlock:^(NSNotification *n) {

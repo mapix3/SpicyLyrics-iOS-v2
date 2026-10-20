@@ -22,7 +22,6 @@ NSNotificationName const SLSettingsDidChangeNotification = @"SLSettingsDidChange
             SLKey("offset"): @0,
             SLKey("fontScale"): @1.0,
             SLKey("dynamicBg"): @YES,
-            SLKey("bubble2"): @YES,
             SLKey("bgVocals"): @YES,
             SLKey("glow"): @YES,
         }];
@@ -41,20 +40,10 @@ NSNotificationName const SLSettingsDidChangeNotification = @"SLSettingsDidChange
 - (BOOL)dynamicBackground { return [_d boolForKey:SLKey("dynamicBg")]; }
 - (void)setDynamicBackground:(BOOL)v { [_d setBool:v forKey:SLKey("dynamicBg")]; [self changed]; }
 
-- (BOOL)showBubble { return [_d boolForKey:SLKey("bubble2")]; }
-- (void)setShowBubble:(BOOL)v { [_d setBool:v forKey:SLKey("bubble2")]; [self changed]; }
-
 - (BOOL)wordGlow { return [_d boolForKey:SLKey("glow")]; }
 - (void)setWordGlow:(BOOL)v { [_d setBool:v forKey:SLKey("glow")]; [self changed]; }
 
 - (BOOL)showBackgroundVocals { return [_d boolForKey:SLKey("bgVocals")]; }
 - (void)setShowBackgroundVocals:(BOOL)v { [_d setBool:v forKey:SLKey("bgVocals")]; [self changed]; }
-
-
-- (CGPoint)bubbleCenter {
-    NSString *s = [_d stringForKey:SLKey("bubbleCenter")];
-    return s ? CGPointFromString(s) : CGPointZero;
-}
-- (void)setBubbleCenter:(CGPoint)p { [_d setObject:NSStringFromCGPoint(p) forKey:SLKey("bubbleCenter")]; }
 
 @end

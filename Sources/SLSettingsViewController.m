@@ -85,7 +85,6 @@ extern UIWindow *SLKeyWindow(void);
     [stack addArrangedSubview:[self switchRow:SLLoc(@"bg_vocals") on:s.showBackgroundVocals action:@selector(bgVocalsChanged:)]];
     [stack addArrangedSubview:[self switchRow:SLLoc(@"glow") on:s.wordGlow action:@selector(glowChanged:)]];
     [stack addArrangedSubview:[self switchRow:SLLoc(@"anim_bg") on:s.dynamicBackground action:@selector(bgChanged:)]];
-    [stack addArrangedSubview:[self switchRow:SLLoc(@"bubble") on:s.showBubble action:@selector(bubbleChanged:)]];
 
     UIButton *reload = [UIButton buttonWithType:UIButtonTypeSystem];
     [reload setTitle:SLLoc(@"reload") forState:UIControlStateNormal];
@@ -139,7 +138,6 @@ extern UIWindow *SLKeyWindow(void);
 - (void)bgVocalsChanged:(UISwitch *)s { [SLSettings shared].showBackgroundVocals = s.on; }
 - (void)glowChanged:(UISwitch *)s { [SLSettings shared].wordGlow = s.on; }
 - (void)bgChanged:(UISwitch *)s { [SLSettings shared].dynamicBackground = s.on; }
-- (void)bubbleChanged:(UISwitch *)s { [SLSettings shared].showBubble = s.on; }
 - (void)reloadTapped {
     [self reloadAll];
     [self dismissViewControllerAnimated:YES completion:nil];

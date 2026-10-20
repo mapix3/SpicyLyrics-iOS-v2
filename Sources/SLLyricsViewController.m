@@ -22,7 +22,7 @@ UIWindow *SLKeyWindow(void) {
     return nil;
 }
 
-/// Полноэкранный экран текста, открывается плавающей кнопкой.
+/// Полноэкранный экран текста, открывается тапом по тексту на плеере.
 @implementation SLLyricsViewController {
     SLLyricsView *_lyricsView;
     UIView *_header;

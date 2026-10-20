@@ -30,6 +30,7 @@
     NSInteger _primary;
     NSIndexSet *_activeSet;
     CGFloat _builtWidth, _builtHeight;
+    BOOL _builtTall;
     CADisplayLink *_link;
     NSString *_loadingKey;
 
@@ -43,7 +44,9 @@
         _primary = NSIntegerMin;
         _activeSet = [NSIndexSet indexSet];
         _interactive = mode == SLLyricsViewModeFull;
-        _contentInsets = mode == SLLyricsViewModeFull ? UIEdgeInsetsMake(0, 24, 0, 24) : UIEdgeInsetsMake(0, 16, 0, 16);
+        _showsAttribution = YES;
+        _contentInsets = mode == SLLyricsViewModeFull ? UIEdgeInsetsMake(0, 24, 0, 24)
+                       : mode == SLLyricsViewModeCompact ? UIEdgeInsetsMake(0, 16, 0, 16) : UIEdgeInsetsZero;
         self.clipsToBounds = YES;
         self.backgroundColor = UIColor.clearColor;
         self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
@@ -65,13 +68,14 @@
         CAGradientLayer *fade = [CAGradientLayer layer];
         fade.colors = @[(id)UIColor.clearColor.CGColor, (id)UIColor.blackColor.CGColor,
                         (id)UIColor.blackColor.CGColor, (id)UIColor.clearColor.CGColor];
-        fade.locations = mode == SLLyricsViewModeFull ? @[@0, @0.08, @0.86, @1] : @[@0, @0.12, @0.82, @1];
+        fade.locations = mode == SLLyricsViewModeFull ? @[@0, @0.08, @0.86, @1]
+                       : mode == SLLyricsViewModeCompact ? @[@0, @0.12, @0.82, @1] : @[@0, @0.03, @0.7, @1];
         _scrollHost.layer.mask = fade;
 
         _statusLabel = [UILabel new];
         _statusLabel.textColor = [UIColor colorWithWhite:1 alpha:0.75];
         _statusLabel.font = [UIFont systemFontOfSize:mode == SLLyricsViewModeFull ? 19 : 15 weight:UIFontWeightSemibold];
-        _statusLabel.textAlignment = NSTextAlignmentCenter;
+        _statusLabel.textAlignment = mode == SLLyricsViewModeStrip ? NSTextAlignmentNatural : NSTextAlignmentCenter;
         _statusLabel.numberOfLines = 0;
         _statusLabel.alpha = 0;
         [self addSubview:_statusLabel];
@@ -179,14 +183,21 @@
     [CATransaction setDisableActions:YES];
     _scrollHost.layer.mask.frame = _scrollHost.bounds;
     [CATransaction commit];
-    _statusLabel.frame = CGRectInset(_scrollHost.frame, 24, 0);
+    _statusLabel.frame = _mode == SLLyricsViewModeStrip
+        ? CGRectMake(_contentInsets.left, _scrollHost.frame.origin.y, [self textWidth], _scrollHost.frame.size.height)
+        : CGRectInset(_scrollHost.frame, _mode == SLLyricsViewModeFull ? 24 : 12, 0);
     _spinner.center = CGPointMake(CGRectGetMidX(_scrollHost.frame), CGRectGetMidY(_scrollHost.frame));
     _resyncButton.frame = CGRectMake((b.size.width - 190) / 2, CGRectGetMaxY(_scrollHost.frame) - 46, 190, 34);
 
     CGFloat width = [self textWidth];
     CGFloat height = _scroll.bounds.size.height;
-    if (_lyrics && (fabs(width - _builtWidth) > 0.5 || _scroll.contentSize.height == 0)) [self buildLines];
+    if (_lyrics && (fabs(width - _builtWidth) > 0.5 || _scroll.contentSize.height == 0 || [self isTall] != _builtTall)) [self buildLines];
     else if (_lyrics && fabs(height - _builtHeight) > 0.5) { [self updateInsets]; [self scrollToPrimaryAnimated:NO]; }
+}
+
+/// Строчка на плеере, растянутая Spotify на большую область (режим «текст вместо обложки»).
+- (BOOL)isTall {
+    return _mode == SLLyricsViewModeStrip && self.bounds.size.height > 220;
 }
 
 - (CGFloat)textWidth {
@@ -203,6 +214,11 @@
     _showsBackground = showsBackground;
     _bg.hidden = !showsBackground;
     _bg.animated = [SLSettings shared].dynamicBackground;
+}
+
+- (void)setShowsAttribution:(BOOL)showsAttribution {
+    _showsAttribution = showsAttribution;
+    [self updateAttribution];
 }
 
 - (void)artworkChanged {
@@ -240,6 +256,7 @@
 
 - (void)setStatus:(NSString *)s loading:(BOOL)loading {
     _statusLabel.text = s;
+    _statusLabel.numberOfLines = _mode == SLLyricsViewModeStrip ? 2 : 0;
     if (loading) [_spinner startAnimating]; else [_spinner stopAnimating];
     [UIView animateWithDuration:0.25 animations:^{ self->_statusLabel.alpha = (s.length && !loading) ? 1 : 0; }];
 }
@@ -258,7 +275,7 @@
 
 /// «Текст: Spicy Lyrics · загрузил X · синхронизировал Y» со ссылками на профили.
 - (void)updateAttribution {
-    if (!_lyrics) { _attribution.hidden = YES; [self setNeedsLayout]; return; }
+    if (!_lyrics || !_showsAttribution) { _attribution.hidden = YES; [self setNeedsLayout]; return; }
     UIFont *font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
     NSDictionary *plain = @{ NSFontAttributeName: font, NSForegroundColorAttributeName: [UIColor colorWithWhite:1 alpha:0.55] };
     NSMutableAttributedString *a = [[NSMutableAttributedString alloc] initWithString:SLLocFormat(@"lyrics_from", _lyrics.source ?: @"—") attributes:plain];
@@ -302,15 +319,30 @@
     [[SLLyricsProvider shared] lyricsForTitle:np.title artist:np.artist ?: @"" album:np.album duration:np.duration
                                      trackURI:np.trackURI trackKey:key completion:^(SLLyrics *ly, NSString *err) {
         if (![key isEqualToString:self->_loadingKey]) return;
-        [self setStatus:ly ? @"" : (err ?: SLLoc(@"not_found")) loading:NO];
+        if (ly) [self setStatus:@"" loading:NO]; else [self showNoLyrics:err];
         [self setLyrics:ly];
     }];
+}
+
+/// «No lyrics found for this song» на языке Spotify.
+/// На полноэкранном — ниже мелко причина, если это не обычное «текста нет» (нет ключа, сервер недоступен и т.п.).
+- (void)showNoLyrics:(NSString *)detail {
+    NSString *main = SLLoc(@"no_lyrics");
+    BOOL plain = !detail.length || [detail isEqualToString:SLLoc(@"err_spicy_none")];
+    if (_mode != SLLyricsViewModeFull || plain) { [self setStatus:main loading:NO]; return; }
+    [self setStatus:main loading:NO];
+    NSMutableAttributedString *a = [[NSMutableAttributedString alloc] initWithString:main attributes:@{
+        NSFontAttributeName: _statusLabel.font, NSForegroundColorAttributeName: _statusLabel.textColor }];
+    [a appendAttributedString:[[NSAttributedString alloc] initWithString:[@"\n" stringByAppendingString:detail] attributes:@{
+        NSFontAttributeName: [UIFont systemFontOfSize:13 weight:UIFontWeightMedium],
+        NSForegroundColorAttributeName: [UIColor colorWithWhite:1 alpha:0.4] }]];
+    _statusLabel.attributedText = a;
 }
 
 #pragma mark - Build
 
 - (CGFloat)fontSize {
-    CGFloat base = _mode == SLLyricsViewModeFull ? 30 : 22;
+    CGFloat base = _mode == SLLyricsViewModeFull ? 30 : _mode == SLLyricsViewModeCompact ? 22 : ([self isTall] ? 26 : 20);
     return round(base * [SLSettings shared].fontScale);
 }
 
@@ -322,8 +354,9 @@
     if (!_lyrics) { _scroll.contentSize = CGSizeZero; return; }
 
     CGFloat width = [self textWidth];
-    if (width <= 60 || self.bounds.size.height <= 40) return;
+    if (width <= 60 || self.bounds.size.height <= 20) return;
     _builtWidth = width;
+    _builtTall = [self isTall];
 
     BOOL synced = _lyrics.type != SLLyricsTypeStatic;
     CGFloat font = [self fontSize];
@@ -352,7 +385,7 @@
     _sourceLabel.text = src;
     CGSize ss = [_sourceLabel sizeThatFits:CGSizeMake(width, CGFLOAT_MAX)];
     _sourceLabel.frame = CGRectMake(x, y + 16, width, ceil(ss.height));
-    _sourceLabel.hidden = _mode == SLLyricsViewModeCompact;
+    _sourceLabel.hidden = _mode != SLLyricsViewModeFull;
     [_scroll addSubview:_sourceLabel];
     y = CGRectGetMaxY(_sourceLabel.frame) + 24;
 
@@ -372,7 +405,9 @@
     _scroll.contentInset = synced ? UIEdgeInsetsMake(h * anchor, 0, h * (1 - anchor), 0) : UIEdgeInsetsMake(24, 0, 60, 0);
 }
 
-- (CGFloat)anchorFraction { return _mode == SLLyricsViewModeFull ? 0.3 : 0.32; }
+- (CGFloat)anchorFraction {
+    return _mode == SLLyricsViewModeFull ? 0.3 : _mode == SLLyricsViewModeCompact ? 0.32 : ([self isTall] ? 0.3 : 0.06);
+}
 
 #pragma mark - Sync
 
