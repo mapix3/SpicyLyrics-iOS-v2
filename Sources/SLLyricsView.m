@@ -193,7 +193,7 @@
     CGFloat width = [self textWidth];
     CGFloat height = _scroll.bounds.size.height;
     if (_lyrics && (fabs(width - _builtWidth) > 0.5 || _scroll.contentSize.height == 0 || [self isTall] != _builtTall)) [self buildLines];
-    else if (_lyrics && fabs(height - _builtHeight) > 0.5) { [self updateInsets]; [self scrollToPrimaryAnimated:NO]; }
+    else if (_lyrics && fabs(height - _builtHeight) > 0.5) { [self updateInsets]; [self scrollToPrimaryAnimated:NO]; [self updateStripFade]; }
 }
 
 /// Строчка на плеере, растянутая Spotify на большую область (режим «текст вместо обложки»).
@@ -410,6 +410,7 @@
     _scroll.contentOffset = CGPointMake(0, -_scroll.contentInset.top);
     [self tick];
     [self scrollToPrimaryAnimated:NO];
+    [self updateStripFade];
 }
 
 - (void)updateInsets {
@@ -421,7 +422,22 @@
 }
 
 - (CGFloat)anchorFraction {
-    return _mode == SLLyricsViewModeFull ? 0.3 : _mode == SLLyricsViewModeCompact ? 0.32 : ([self isTall] ? 0.3 : 0.06);
+    return _mode == SLLyricsViewModeFull ? 0.3 : _mode == SLLyricsViewModeCompact ? 0.32 : ([self isTall] ? 0.3 : 0);
+}
+
+/// Строчка на плеере: текущая строка видна целиком (даже в две строки), затухание — только после неё.
+- (void)updateStripFade {
+    if (_mode != SLLyricsViewModeStrip || [self isTall]) return;
+    CAGradientLayer *fade = (CAGradientLayer *)_scrollHost.layer.mask;
+    CGFloat h = _scrollHost.bounds.size.height;
+    if (![fade isKindOfClass:[CAGradientLayer class]] || h <= 0) return;
+    CGFloat lineH = 0;
+    NSInteger idx = MAX(_primary, 0);
+    if (_lyrics.type != SLLyricsTypeStatic && idx < (NSInteger)_lineViews.count) lineH = _lineViews[idx].contentHeight;
+    if (lineH <= 0) lineH = h * 0.5;
+    CGFloat solid = MIN(1.0, (h * [self anchorFraction] + lineH + 4) / h);
+    CGFloat end = MIN(1.0, solid + 18.0 / h);
+    fade.locations = @[@0, @0, @(solid), @(MAX(end, solid))];
 }
 
 #pragma mark - Sync
@@ -455,6 +471,7 @@
         _primary = primary;
         _activeSet = [active copy];
         [self applyStatesAt:t];
+        if (primaryChanged) [self updateStripFade];
         if (primaryChanged && !_userScrolling && CACurrentMediaTime() - _userScrollEnd > 3.0) [self scrollToPrimaryAnimated:YES];
     }
     [_activeSet enumerateIndexesUsingBlock:^(NSUInteger i, BOOL *stop) {
