@@ -430,7 +430,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLTable
     return t;
 }
 
-/// Строки экрана плеера — на всех языках, на которых бывает интерфейс Spotify.
 static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *SLPlayerTables(void) {
     static NSDictionary *t;
     static dispatch_once_t once;
@@ -504,7 +503,6 @@ NSString *SLLanguage(void) {
     static NSString *lang;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // язык, на котором сейчас показан интерфейс Spotify
         NSString *pref = NSBundle.mainBundle.preferredLocalizations.firstObject
                       ?: NSLocale.preferredLanguages.firstObject ?: @"en";
         NSString *l = [[pref stringByReplacingOccurrencesOfString:@"_" withString:@"-"] lowercaseString];

@@ -2,8 +2,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Управление плеером Spotify изнутри процесса: вызываем те же обработчики,
-/// которые Spotify повесил на MPRemoteCommandCenter (перемотка из Пункта управления).
 @interface SLRemote : NSObject
 + (void)command:(MPRemoteCommand *)cmd addedTarget:(id)target action:(SEL)action;
 + (void)command:(MPRemoteCommand *)cmd addedHandler:(id)handler token:(id)token;

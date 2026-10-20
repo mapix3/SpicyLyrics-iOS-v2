@@ -3,26 +3,24 @@
 NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM(NSInteger, SLLyricsViewMode) {
-    SLLyricsViewModeFull = 0,      // полноэкранный текст
-    SLLyricsViewModeCompact = 1,   // карточка на экране плеера
-    SLLyricsViewModeStrip = 2,     // строчка текста прямо на плеере
+    SLLyricsViewModeFull = 0,
+    SLLyricsViewModeCompact = 1,
+    SLLyricsViewModeStrip = 2,
 };
 
-/// Самодостаточный экран текста: сам грузит текст текущего трека, синхронизирует и скроллит.
 @interface SLLyricsView : UIView
 - (instancetype)initWithMode:(SLLyricsViewMode)mode;
 
 @property (nonatomic, readonly) SLLyricsViewMode mode;
 @property (nonatomic, readonly) BOOL hasLyrics;
-@property (nonatomic) BOOL showsBackground;       // динамический фон из обложки
-@property (nonatomic) BOOL showsAttribution;      // подпись источника под текстом (по умолчанию YES)
-@property (nonatomic) BOOL interactive;           // скролл, тап по строке = перемотка
-@property (nonatomic) UIEdgeInsets contentInsets; // отступы текста от краёв
-/// Вызывается, когда текст появился/пропал (чтобы хост показал/скрыл оригинальный UI Spotify).
+@property (nonatomic) BOOL showsBackground;
+@property (nonatomic) BOOL showsAttribution;
+@property (nonatomic) BOOL interactive;
+@property (nonatomic) UIEdgeInsets contentInsets;
 @property (nonatomic, copy, nullable) void (^availabilityChanged)(BOOL hasLyrics);
 
-- (void)reload;          // перезагрузить текст (без кэша)
-- (void)resync;          // вернуться к текущей строке
+- (void)reload;
+- (void)resync;
 @end
 
 NS_ASSUME_NONNULL_END

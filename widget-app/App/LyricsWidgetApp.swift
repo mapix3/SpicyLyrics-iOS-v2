@@ -9,7 +9,6 @@ struct LyricsWidgetApp: App {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(.dark)
-                // ссылки на авторов из виджета приходят сюда — открываем в Safari
                 .onOpenURL { url in
                     if url.scheme == "https" || url.scheme == "http" { UIApplication.shared.open(url) }
                 }
@@ -58,7 +57,6 @@ final class AppModel: ObservableObject {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// Выкачать текст заново (например, после включения Spicy).
     func clearLyricsCache() {
         let dir = SharedStore.directory
         for f in (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [] where f.hasPrefix("lyrics_") {
@@ -166,7 +164,6 @@ struct ContentView: View {
     }
 }
 
-/// Живой предпросмотр в приложении: та же логика, что у виджета, но обновляется постоянно.
 struct LivePreview: View {
     var np: NowPlaying
     var lines: [LyricLine]
@@ -188,7 +185,6 @@ struct LivePreview: View {
     }
 }
 
-/// Подпись источника со ссылками на загрузившего и автора синхронизации.
 struct AttributionView: View {
     var lyrics: Lyrics
     var body: some View {

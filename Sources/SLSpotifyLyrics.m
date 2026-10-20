@@ -1,13 +1,5 @@
 #import "SLSpotifyLyrics.h"
 
-// Схема color-lyrics/v2 (только нужные поля):
-//   Lyrics      { 1: LyricsData data; 2: LyricsColors colors }
-//   LyricsData  { 1: bool timeSynchronized; 2: repeated LyricsLine lines; 5: string providedBy }
-//   LyricsLine  { 1: int32 offsetMs; 2: string content }
-//   LyricsColors{ 1: uint32 background; 2: uint32 line; 3: uint32 activeLine }
-
-#pragma mark - Protobuf reader
-
 typedef struct {
     const uint8_t *p, *end;
 } SLPB;
@@ -22,7 +14,6 @@ static BOOL SLReadVarint(SLPB *r, uint64_t *out) {
     return NO;
 }
 
-/// Следующее поле. Для LEN — *sub указывает на содержимое.
 static BOOL SLNextField(SLPB *r, uint32_t *field, uint32_t *wire, uint64_t *value, SLPB *sub) {
     if (r->p >= r->end) return NO;
     uint64_t key;
@@ -48,8 +39,6 @@ static BOOL SLNextField(SLPB *r, uint32_t *field, uint32_t *wire, uint64_t *valu
 static NSString *SLPBString(SLPB s) {
     return [[NSString alloc] initWithBytes:s.p length:(NSUInteger)(s.end - s.p) encoding:NSUTF8StringEncoding] ?: @"";
 }
-
-#pragma mark - Spotify → SLLyrics
 
 static BOOL SLIsFiller(NSString *t) {
     NSString *s = [t stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];

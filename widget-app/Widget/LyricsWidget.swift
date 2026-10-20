@@ -13,11 +13,10 @@ struct LyricsEntry: TimelineEntry {
     var isInterlude = false
     var message: String?
     var artwork: UIImage?
-    var attribution: String?      // источник текста — показываем всегда рядом с текстом
-    var creditURL: URL?           // профиль автора синхронизации (Spicy Lyrics)
+    var attribution: String?
+    var creditURL: URL?
 }
 
-/// Кнопка «↻»: виджет сам перезапрашивает позицию трека и строит расписание заново.
 struct SyncLyricsIntent: AppIntent {
     static var title: LocalizedStringResource = "Синхронизировать текст"
     func perform() async throws -> some IntentResult { .result() }
@@ -77,7 +76,6 @@ struct LyricsProvider: TimelineProvider {
             if !np.isPlaying { e.message = "Пауза" }
             return e
         }
-        // следующая пересинхронизация — когда трек закончится (или через 15 мин на паузе)
         let reload = np.isPlaying ? max(trackEnd, now.addingTimeInterval(30)) : now.addingTimeInterval(15 * 60)
         return (entries, reload)
     }

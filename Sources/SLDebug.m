@@ -7,7 +7,6 @@ static dispatch_queue_t SLDebugQueue(void) {
     return q;
 }
 
-/// Текущая сессия; лог прошлого запуска сохраняется как prev-log.txt (на случай вылета).
 static NSURL *SLDebugDir(void) {
     static NSURL *dir;
     static dispatch_once_t once;
@@ -40,7 +39,6 @@ void SLLog(NSString *format, ...) {
     va_end(args);
     NSString *stamp = [NSString stringWithFormat:@"%.3f", CFAbsoluteTimeGetCurrent()];
     BOOL main = [NSThread isMainThread];
-    // синхронно — чтобы строка точно попала в файл, даже если следом Spotify упадёт
     dispatch_sync(SLDebugQueue(), ^{
         SLAppend(@"log.txt", [NSString stringWithFormat:@"%@ %@ %@\n", stamp, main ? @"[M]" : @"[B]", msg]);
     });

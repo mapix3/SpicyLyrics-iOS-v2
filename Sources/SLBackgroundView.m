@@ -86,7 +86,6 @@
 
 + (UIImage *)blurred:(UIImage *)img {
     if (!img.CGImage && !img.CIImage) return nil;
-    // уменьшаем, чтобы размытие было дешёвым и «огромным»
     CGSize small = CGSizeMake(96, 96);
     UIGraphicsImageRendererFormat *fmt = [UIGraphicsImageRendererFormat defaultFormat];
     fmt.scale = 1;

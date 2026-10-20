@@ -9,16 +9,16 @@ NSNotificationName const SLSpotifyLyricsDidLoadNotification = @"SLSpotifyLyricsD
 
 static NSString *const SLOwnHeader = @"X-SpicyLyricsiOS";
 static NSString *const SLUserAgent = @"SpicyLyricsiOS/2.0 (https://github.com/mapix3/SpicyLyrics-iOS-v2)";
-static NSString *const SLSpicyAPI = @"https://api.spicylyrics.org/v1/lyrics/";   // Developer API
+static NSString *const SLSpicyAPI = @"https://api.spicylyrics.org/v1/lyrics/";
 
 @interface SLLyricsProvider ()
 @property (nonatomic, strong) NSURLSession *session;
 @property (nonatomic, strong) NSCache<NSString *, SLLyrics *> *cache;
-@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *idForKey;   // trackKey -> track id
-@property (nonatomic, strong) NSMutableArray<NSString *> *sniffedIds;                  // последние id из запросов Spotify
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *idForKey;
+@property (nonatomic, strong) NSMutableArray<NSString *> *sniffedIds;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableArray<SLLyricsCompletion> *> *pending;
-@property (nonatomic, strong) NSCache<NSString *, id> *spicyById;     // id -> SLLyrics | NSNull (точно нет)
-@property (nonatomic, strong) NSCache<NSString *, id> *spotifyById;   // id -> SLLyrics | NSNull
+@property (nonatomic, strong) NSCache<NSString *, id> *spicyById;
+@property (nonatomic, strong) NSCache<NSString *, id> *spotifyById;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableArray<SLLyricsCompletion> *> *spicyPending;
 @property (atomic, copy) NSString *spotifyToken;
 @property (atomic, copy) NSString *clientToken;
@@ -104,8 +104,6 @@ static NSString *SLFirstArtist(NSString *a) {
     return key ? [self.cache objectForKey:key] : nil;
 }
 
-#pragma mark - Sniffing
-
 - (void)observeRequest:(NSURLRequest *)request {
     NSDictionary *h = request.allHTTPHeaderFields;
     if (h[SLOwnHeader]) return;
@@ -122,7 +120,6 @@ static NSString *SLFirstArtist(NSString *a) {
     NSString *ua = h[@"User-Agent"] ?: h[@"user-agent"];
     if ([url.host hasPrefix:@"spclient"] && ua.length) self.spotifyUserAgent = ua;
 
-    // Spotify сам запрашивает текст текущего трека: .../color-lyrics/v2/track/<id>
     static NSRegularExpression *re;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -148,8 +145,6 @@ static NSString *SLFirstArtist(NSString *a) {
     return @{ @"Authorization": [@"Bearer " stringByAppendingString:self.spotifyToken ?: @""], @"App-Platform": @"iOS" };
 }
 
-#pragma mark - HTTP
-
 - (void)request:(NSString *)url method:(NSString *)method body:(NSData *)body headers:(NSDictionary *)headers
      completion:(void (^)(id json, NSInteger status))completion {
     NSURL *u = [NSURL URLWithString:url];
@@ -173,9 +168,6 @@ static NSString *SLFirstArtist(NSString *a) {
     [self request:url method:@"GET" body:nil headers:headers completion:completion];
 }
 
-#pragma mark - Track id
-
-/// Совпадает ли трек Spotify с тем, что сейчас играет.
 static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, double duration) {
     if (![t isKindOfClass:[NSDictionary class]]) return NO;
     double d = [t[@"duration_ms"] doubleValue] / 1000.0;
@@ -204,7 +196,6 @@ static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, d
         completion(tid);
     };
 
-    // 1) id из запросов самого Spotify — проверяем, что это именно текущий трек
     NSArray *candidates;
     @synchronized (self) { candidates = [self.sniffedIds copy]; }
     void (^search)(void) = ^{
@@ -234,14 +225,11 @@ static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, d
     }];
 }
 
-#pragma mark - Public
-
 - (void)lyricsForTitle:(NSString *)title artist:(NSString *)artist album:(NSString *)album duration:(double)duration
               trackURI:(NSString *)uri trackKey:(NSString *)key completion:(SLLyricsCompletion)completion {
     SLLyrics *cached = [self.cache objectForKey:key];
     if (cached) { completion(cached, nil); return; }
 
-    // склеиваем одновременные запросы одного трека
     @synchronized (self) {
         NSMutableArray *waiting = self.pending[key];
         if (waiting) { [waiting addObject:[completion copy]]; return; }
@@ -258,7 +246,6 @@ static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, d
         });
     };
 
-    // Spicy Lyrics, а если там нет — текст самого Spotify
     [self resolveTrackIdForTitle:title artist:artist duration:duration uri:uri key:key completion:^(NSString *tid) {
         [self spicyLyricsForTrackId:tid completion:^(SLLyrics *ly, NSString *err) {
             if (ly) { finish(ly, nil); return; }
@@ -268,8 +255,6 @@ static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, d
         }];
     }];
 }
-
-#pragma mark - Spicy Lyrics
 
 - (void)spicyLyricsForTrackId:(NSString *)tid completion:(SLLyricsCompletion)completion {
     void (^done)(SLLyrics *, NSString *) = ^(SLLyrics *ly, NSString *err) {
@@ -315,8 +300,6 @@ static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, d
     }];
 }
 
-#pragma mark - Spotify (запасной источник)
-
 - (void)storeSpotifyResponse:(NSData *)data trackId:(NSString *)tid {
     if (!tid.length) return;
     SLLyrics *ly = SLLyricsFromSpotifyResponse(data);
@@ -347,7 +330,6 @@ static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, d
         SLLyrics *ly = status == 200 ? SLLyricsFromSpotifyResponse(data) : nil;
         if (ly) [self.spotifyById setObject:ly forKey:tid];
         else if (status == 404) [self.spotifyById setObject:[NSNull null] forKey:tid];
-        // уже успели перехватить ответ самого Spotify
         id late = [self.spotifyById objectForKey:tid];
         done(ly ?: ([late isKindOfClass:[SLLyrics class]] ? late : nil));
     }] resume];

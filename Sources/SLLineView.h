@@ -19,7 +19,6 @@ typedef NS_ENUM(NSInteger, SLLineState) {
                     fontSize:(CGFloat)fontSize
                         type:(SLLyricsType)type
               backgroundVocals:(BOOL)showBackground;
-/// t — текущее время трека (с). Для активной строки вызывается каждый кадр.
 - (void)updateWithTime:(double)t state:(SLLineState)state glow:(BOOL)glow;
 @end
 

@@ -39,7 +39,6 @@ jobs:
         run: |
           APP=build/Build/Products/Release-iphoneos/LyricsWidget.app
           ls -la "$APP" "$APP/PlugIns"
-          # ad-hoc подпись с entitlements: SideStore/AltStore/Sideloadly берут из неё App Group
           ldid -SWidget/Widget.entitlements "$APP/PlugIns/LyricsWidgetExtension.appex/LyricsWidgetExtension"
           ldid -SApp/App.entitlements "$APP/LyricsWidget"
           ldid -e "$APP/LyricsWidget"

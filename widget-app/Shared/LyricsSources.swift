@@ -19,8 +19,6 @@ private func getJSON(_ url: URL, headers: [String: String] = [:]) async -> (Any?
     return (try? JSONSerialization.jsonObject(with: data), (resp as? HTTPURLResponse)?.statusCode ?? 0)
 }
 
-// MARK: - LRCLIB
-
 enum LRCLib {
     static func lyrics(for t: TrackInfo) async -> Lyrics? {
         func q(_ s: String) -> String { s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? s }
@@ -30,7 +28,6 @@ enum LRCLib {
 
         let search = URL(string: "https://lrclib.net/api/search?track_name=\(q(cleanTitle(t.title)))&artist_name=\(q(firstArtist(t.artist)))")!
         guard case let (items as [[String: Any]], _) = await getJSON(search) else { return nil }
-        // строго по длительности: другая версия трека = рассинхрон
         let best = items
             .filter { ($0["syncedLyrics"] as? String)?.isEmpty == false }
             .map { ($0, abs(($0["duration"] as? Double ?? 0) - t.duration)) }
@@ -59,10 +56,6 @@ enum LRCLib {
     }
 }
 
-// MARK: - Spicy Lyrics (Developer API)
-
-/// https://developers.spicylyrics.org — GET /v1/lyrics/{spotifyTrackId}, Authorization: Bearer <sl_pk_…>.
-/// Ключ вшивается при сборке из секрета SPICY_API_KEY или вводится в приложении.
 enum SpicySource {
     static let endpoint = "https://api.spicylyrics.org/v1/lyrics/"
 
@@ -70,14 +63,12 @@ enum SpicySource {
         get { SharedStore.defaults.object(forKey: "spicyEnabled") as? Bool ?? !Secrets.spicyAPIKey.isEmpty }
         set { SharedStore.defaults.set(newValue, forKey: "spicyEnabled") }
     }
-    /// Свой ключ из приложения (перекрывает вшитый).
     static var apiKey: String {
         get { SharedStore.defaults.string(forKey: "spicyKey") ?? "" }
         set { SharedStore.defaults.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "spicyKey") }
     }
     static var effectiveKey: String { apiKey.isEmpty ? Secrets.spicyAPIKey : apiKey }
 
-    /// Последний ответ сервера — показывается в приложении.
     static var lastStatus: String {
         get { SharedStore.defaults.string(forKey: "spicyStatus") ?? "" }
         set { SharedStore.defaults.set(newValue, forKey: "spicyStatus") }
@@ -108,7 +99,6 @@ enum SpicySource {
         return ly
     }
 
-    /// Body ответа -> строки. Виджет построчный: у слоговых берём начало/конец строки.
     static func parse(_ d: [String: Any], _ t: TrackInfo) -> Lyrics? {
         let type = d["Type"] as? String ?? ""
         var starts: [(Double, String, Double?)] = []
@@ -128,12 +118,11 @@ enum SpicySource {
         } else if type == "Line", let content = d["Content"] as? [[String: Any]] {
             for c in content { starts.append((num(c["StartTime"]) ?? 0, c["Text"] as? String ?? "", num(c["EndTime"]))) }
         } else {
-            return nil   // Static: без таймингов виджету показывать нечего
+            return nil
         }
         let lines = LyricsParser.build(starts: starts, duration: t.duration)
         guard !lines.isEmpty else { return nil }
 
-        // провайдер и авторы — из каждого ответа, не хардкодим
         let provider: String
         switch d["source"] as? String ?? "" {
         case "spicy_lyrics": provider = "Spicy Lyrics"

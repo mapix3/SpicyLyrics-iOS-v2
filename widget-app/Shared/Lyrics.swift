@@ -1,6 +1,5 @@
 import Foundation
 
-/// Строка текста с таймингом (секунды от начала трека).
 struct LyricLine: Codable, Hashable {
     var start: Double
     var end: Double
@@ -22,7 +21,6 @@ struct Lyrics: Codable {
     var maker: Credit? = nil
     var fetchedAt: Date? = nil
 
-    /// Одна строка подписи: «Spicy Lyrics · загрузил X · синхронизировал Y».
     var attribution: String {
         var s = source
         if let u = uploader { s += " · загрузил \(u.name)" }
@@ -32,14 +30,12 @@ struct Lyrics: Codable {
 }
 
 enum LyricsParser {
-    /// Пауза, после которой показываем «♪».
     static let interludeGap = 3.0
 
     static func isInstrumental(_ s: String) -> Bool {
         s.trimmingCharacters(in: CharacterSet(charactersIn: "♪♫♬♩🎵🎶 .…-–—*•").union(.whitespaces)).isEmpty
     }
 
-    /// Начала строк -> строки с концами и интерлюдиями.
     static func build(starts: [(Double, String, Double?)], duration: Double) -> [LyricLine] {
         let sorted = starts.sorted { $0.0 < $1.0 }
         var lines: [LyricLine] = []
@@ -60,7 +56,6 @@ enum LyricsParser {
         return out
     }
 
-    /// LRC (в т.ч. enhanced: теги <mm:ss.xx> у слов просто вырезаются).
     static func parseLRC(_ lrc: String, duration: Double) -> [LyricLine] {
         let lineTag = try! NSRegularExpression(pattern: #"\[(\d{1,3}):(\d{1,2}(?:[.:,]\d{1,3})?)\]"#)
         let wordTag = try! NSRegularExpression(pattern: #"<\d{1,3}:\d{1,2}(?:[.:,]\d{1,3})?>"#)

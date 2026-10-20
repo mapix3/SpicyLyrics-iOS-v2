@@ -69,8 +69,6 @@ static NSString *SLFindTrackURI(NSDictionary *info) {
     NSString *uri = SLFindTrackURI(info);
     if (uri) self.trackURI = uri; else if (trackChanged) self.trackURI = nil;
 
-    // Точка отсчёта — момент вызова Spotify, а не момент, когда до нас дошла очередь главного потока:
-    // при переключении трека он занят анимациями, и разница доходила до секунды.
     NSNumber *elapsed = info[MPNowPlayingInfoPropertyElapsedPlaybackTime];
     NSNumber *rate = info[MPNowPlayingInfoPropertyPlaybackRate];
     if (elapsed) {
@@ -87,7 +85,6 @@ static NSString *SLFindTrackURI(NSDictionary *info) {
     if (trackChanged) [nc postNotificationName:SLTrackDidChangeNotification object:self];
     [nc postNotificationName:SLPlaybackDidChangeNotification object:self];
 
-    // обложку декодируем в фоне — не тормозим главный поток
     MPMediaItemArtwork *art = info[MPMediaItemPropertyArtwork];
     if (art && art != self.lastArtworkObject) {
         self.lastArtworkObject = art;
@@ -118,7 +115,7 @@ static NSString *SLFindTrackURI(NSDictionary *info) {
 
 - (void)updatePlaybackState:(NSInteger)state stamp:(CFTimeInterval)stamp {
     void (^apply)(void) = ^{
-        BOOL playing = (state == 1); // MPNowPlayingPlaybackStatePlaying
+        BOOL playing = (state == 1);
         if (playing == self.isPlaying) return;
         self.elapsedAtUpdate = [self rawTimeAt:stamp];
         self.updateStamp = stamp;

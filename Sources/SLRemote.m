@@ -6,8 +6,8 @@
 @interface SLRemoteEntry : NSObject
 @property (nonatomic, weak) id target;
 @property (nonatomic) SEL action;
-@property (nonatomic, copy) id handler;   // MPRemoteCommandHandlerStatus (^)(MPRemoteCommandEvent *)
-@property (nonatomic, weak) id token;     // объект, который вернул addTargetWithHandler:
+@property (nonatomic, copy) id handler;
+@property (nonatomic, weak) id token;
 @end
 @implementation SLRemoteEntry
 @end
@@ -57,7 +57,6 @@ static NSMutableArray<SLRemoteEntry *> *SLEntriesFor(MPRemoteCommand *cmd) {
     }
 }
 
-/// Возвращает YES, если хоть один обработчик был вызван.
 + (BOOL)fire:(MPRemoteCommand *)cmd event:(id)event {
     NSArray<SLRemoteEntry *> *entries;
     @synchronized (self) { entries = [SLEntriesFor(cmd) copy]; }
@@ -129,7 +128,7 @@ static void *SLMediaRemote(void) {
     }
     if (!ok) {
         MRSendCommandFn fn = (MRSendCommandFn)dlsym(SLMediaRemote(), "MRMediaRemoteSendCommand");
-        if (fn) ok = fn(2 /* kMRTogglePlayPause */, NULL);
+        if (fn) ok = fn(2 , NULL);
     }
     return ok;
 }

@@ -1,8 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 
-/// Подменяет метод экземпляра. makeBlock получает оригинальную реализацию и возвращает блок-замену
-/// (первый аргумент блока — self). NO — у класса нет такого метода.
 static inline BOOL SLHook(Class cls, SEL sel, id (^makeBlock)(IMP orig)) {
     if (!cls) return NO;
     Method m = class_getInstanceMethod(cls, sel);

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Что играло на момент запроса. Позиция в любой момент = progress + (t - capturedAt), если играет.
 struct NowPlaying: Codable {
     var track: TrackInfo
     var progress: Double
@@ -10,7 +9,6 @@ struct NowPlaying: Codable {
     func position(at date: Date) -> Double {
         isPlaying ? min(progress + date.timeIntervalSince(capturedAt), track.duration) : progress
     }
-    /// Когда трек дойдёт до секунды `t`.
     func date(atPosition t: Double) -> Date {
         capturedAt.addingTimeInterval(t - progress)
     }
@@ -23,7 +21,6 @@ struct EngineState {
 }
 
 enum LyricsEngine {
-    /// Узнать, что играет, и подготовить текст целиком (из кэша или из сети).
     static func refresh() async -> EngineState {
         let token: String
         do { token = try await SpotifyAuth.accessToken() } catch {
@@ -41,7 +38,6 @@ enum LyricsEngine {
         await cacheArtwork(np.track)
 
         let file = "lyrics_\(np.track.id).json"
-        // кэш не дольше 30 дней (условие Spicy Lyrics API)
         if let cached = SharedStore.load(Lyrics.self, from: file),
            let at = cached.fetchedAt, Date().timeIntervalSince(at) < 30 * 24 * 3600 {
             return EngineState(nowPlaying: np, lyrics: cached)
@@ -68,7 +64,7 @@ enum LyricsEngine {
               let id = item["id"] as? String else {
             if status == 401 { throw SpotifyAuth.AuthError.notLoggedIn }
             if status == 403 { throw SpotifyAuth.AuthError.http(403, "аккаунт не добавлен в приложение на developer.spotify.com") }
-            if status == 200 { return nil }   // реклама/подкаст
+            if status == 200 { return nil }
             throw SpotifyAuth.AuthError.http(status, "")
         }
         let artists = (item["artists"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
@@ -80,7 +76,6 @@ enum LyricsEngine {
                               album: album?["name"] as? String ?? "",
                               duration: (item["duration_ms"] as? Double ?? 0) / 1000,
                               artworkURL: art)
-        // позиция была замерена где-то посередине запроса
         let mid = sent.addingTimeInterval(received.timeIntervalSince(sent) / 2)
         return NowPlaying(track: track,
                           progress: (json["progress_ms"] as? Double ?? 0) / 1000,
@@ -99,11 +94,10 @@ enum LyricsEngine {
     }
 }
 
-/// Расписание строк для виджета.
 enum LyricsTimeline {
     struct Slot {
         var date: Date
-        var index: Int?          // индекс строки (nil = до первой строки)
+        var index: Int?
     }
 
     static func index(in lines: [LyricLine], at position: Double) -> Int? {
@@ -112,7 +106,6 @@ enum LyricsTimeline {
         return ans
     }
 
-    /// Слоты: «сейчас» + момент начала каждой следующей строки (с учётом сдвига).
     static func slots(np: NowPlaying, lines: [LyricLine], now: Date, offset: Double, limit: Int = 150) -> [Slot] {
         let pos = np.position(at: now) + offset
         var slots = [Slot(date: now, index: index(in: lines, at: pos))]

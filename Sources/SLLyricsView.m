@@ -21,7 +21,7 @@
     UIView *_scrollHost;
     UIScrollView *_scroll;
     UILabel *_statusLabel, *_sourceLabel;
-    UITextView *_attribution;      // подпись источника, всегда видна вместе с текстом
+    UITextView *_attribution;
     UIButton *_resyncButton;
     UIActivityIndicatorView *_spinner;
 
@@ -49,7 +49,7 @@
         _showsAttribution = YES;
         _contentInsets = mode == SLLyricsViewModeFull ? UIEdgeInsetsMake(0, 24, 0, 24)
                        : mode == SLLyricsViewModeCompact ? UIEdgeInsetsMake(0, 16, 0, 16)
-                       : UIEdgeInsetsMake(14, 0, 0, 0);   // строчка на плеере — отступ от обложки
+                       : UIEdgeInsetsMake(14, 0, 0, 0);
         self.clipsToBounds = YES;
         self.backgroundColor = UIColor.clearColor;
         self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
@@ -134,8 +134,6 @@
     [_link invalidate];
 }
 
-#pragma mark - Window / display link
-
 - (void)didMoveToWindow {
     [super didMoveToWindow];
     if (self.window) {
@@ -154,7 +152,6 @@
     }
 }
 
-/// На экране — частота экрана (120 на ProMotion), спрятан — почти стоим, чтобы не жечь батарею.
 - (void)setLinkFast:(BOOL)fast {
     if (!_link || (fast == _linkFast && _linkConfigured)) return;
     _linkFast = fast;
@@ -171,7 +168,6 @@
     }
 }
 
-/// Реально ли видно на экране (не спрятан Spotify, не за пределами окна).
 - (BOOL)isOnScreen {
     UIWindow *w = self.window;
     if (!w) return NO;
@@ -180,14 +176,11 @@
     return r.size.width > 1 && r.size.height > 1 && CGRectIntersectsRect(r, w.bounds);
 }
 
-/// CADisplayLink держит target сильной ссылкой — разрываем цикл.
 - (id)weakProxy {
     SLWeakTickProxy *p = [SLWeakTickProxy new];
     p.target = self;
     return p;
 }
-
-#pragma mark - Layout
 
 - (void)layoutSubviews {
     [super layoutSubviews];
@@ -220,7 +213,6 @@
     else if (_lyrics && fabs(height - _builtHeight) > 0.5) { [self updateInsets]; [self scrollToPrimaryAnimated:NO]; [self updateStripFade]; }
 }
 
-/// Строчка на плеере, растянутая Spotify на большую область (режим «текст вместо обложки»).
 - (BOOL)isTall {
     return _mode == SLLyricsViewModeStrip && self.bounds.size.height > 220;
 }
@@ -250,8 +242,6 @@
     if (_showsBackground) [_bg setArtwork:[SLNowPlaying shared].artwork];
 }
 
-#pragma mark - Loading
-
 - (void)trackChanged {
     [self loadLyrics];
 }
@@ -261,7 +251,6 @@
     if (self.window) [self loadLyrics];
 }
 
-/// Spotify сам загрузил свой текст — если у нас пусто, пробуем ещё раз (возьмём его как запасной).
 - (void)spotifyLyricsArrived {
     if (!_lyrics && self.window && [SLNowPlaying shared].title.length) [self forceReload];
 }
@@ -274,7 +263,6 @@
 }
 
 - (void)playbackChanged {
-    // после перемотки — сразу к нужной строке
     if (!_userScrolling) _userScrollEnd = 0;
 }
 
@@ -303,13 +291,11 @@
 
 - (BOOL)hasLyrics { return _lyrics != nil; }
 
-/// «Текст: Spicy Lyrics · загрузил X · синхронизировал Y» со ссылками на профили.
 - (void)updateAttribution {
     if (!_lyrics || !_showsAttribution) { _attribution.hidden = YES; [self setNeedsLayout]; return; }
     UIFont *font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
     NSDictionary *plain = @{ NSFontAttributeName: font, NSForegroundColorAttributeName: [UIColor colorWithWhite:1 alpha:0.55] };
     if (_lyrics.fromSpotify) {
-        // у Spicy Lyrics текста нет — показываем текст Spotify и честно об этом пишем
         NSString *note = SLLoc(@"spotify_fallback");
         if (_lyrics.source.length && ![_lyrics.source isEqualToString:@"Spotify"]) note = [note stringByAppendingFormat:@" · %@", _lyrics.source];
         _attribution.attributedText = [[NSAttributedString alloc] initWithString:note attributes:plain];
@@ -363,8 +349,6 @@
     }];
 }
 
-/// «No lyrics found for this song» на языке Spotify.
-/// На полноэкранном — ниже мелко причина, если это не обычное «текста нет» (нет ключа, сервер недоступен и т.п.).
 - (void)showNoLyrics:(NSString *)detail {
     NSString *main = SLLoc(@"no_lyrics");
     BOOL plain = !detail.length || [detail isEqualToString:SLLoc(@"err_spicy_none")];
@@ -377,8 +361,6 @@
         NSForegroundColorAttributeName: [UIColor colorWithWhite:1 alpha:0.4] }]];
     _statusLabel.attributedText = a;
 }
-
-#pragma mark - Build
 
 - (CGFloat)fontSize {
     CGFloat base = _mode == SLLyricsViewModeFull ? 30 : _mode == SLLyricsViewModeCompact ? 22 : ([self isTall] ? 26 : 20);
@@ -449,7 +431,6 @@
     return _mode == SLLyricsViewModeFull ? 0.3 : _mode == SLLyricsViewModeCompact ? 0.32 : ([self isTall] ? 0.3 : 0);
 }
 
-/// Строчка на плеере: текущая строка всегда видна целиком (даже в две строки).
 - (void)updateStripFade {
     if (_mode != SLLyricsViewModeStrip || [self isTall]) return;
     CAGradientLayer *fade = (CAGradientLayer *)_scrollHost.layer.mask;
@@ -459,14 +440,11 @@
     NSInteger idx = MAX(_primary, 0);
     if (_lyrics.type != SLLyricsTypeStatic && idx < (NSInteger)_lineViews.count) lineH = _lineViews[idx].contentHeight;
     if (lineH <= 0) lineH = h * 0.5;
-    // обычное затухание — с 70% высоты; ниже — только если текущая строка туда не влезает
     CGFloat need = (h * [self anchorFraction] + lineH + 4) / h;
     CGFloat solid = MIN(1.0, MAX(0.7, need));
     CGFloat end = need > 0.7 ? MIN(1.0, solid + 18.0 / h) : 1.0;
     fade.locations = @[@0, @0, @(solid), @(MAX(end, solid))];
 }
-
-#pragma mark - Sync
 
 - (NSInteger)primaryIndexAt:(double)t {
     NSArray<SLLine *> *lines = _lyrics.lines;
@@ -479,19 +457,17 @@
 }
 
 - (void)tick {
-    // спрятан — проверяем каждый кадр (чтобы сразу разогнаться), на экране — раз в 20 кадров
     if (!_linkFast || ++_visibilityTicks % 20 == 0) [self setLinkFast:[self isOnScreen]];
     if (!_lyrics || _lyrics.type == SLLyricsTypeStatic || !_lineViews.count) return;
     double t = [[SLNowPlaying shared] currentTime];
     NSArray<SLLine *> *lines = _lyrics.lines;
     NSInteger primary = [self primaryIndexAt:t];
 
-    // активны все строки, которые сейчас звучат (перекрытия, дуэты)
     NSMutableIndexSet *active = [NSMutableIndexSet indexSet];
     for (NSInteger i = MAX(0, primary - 4); i <= primary && i < (NSInteger)lines.count; i++) {
         if (lines[i].start <= t && t < lines[i].end) [active addIndex:i];
     }
-    if (primary >= 0 && !lines[primary].isInterlude) [active addIndex:primary]; // держим, пока не началась следующая
+    if (primary >= 0 && !lines[primary].isInterlude) [active addIndex:primary];
 
     BOOL glow = [SLSettings shared].wordGlow;
     if (primary != _primary || ![active isEqualToIndexSet:_activeSet]) {
@@ -566,8 +542,6 @@
     [self resync];
 }
 
-#pragma mark - UIScrollViewDelegate
-
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
     [scrollView.layer removeAllAnimations];
     _userScrolling = YES;
@@ -583,8 +557,6 @@
 }
 
 @end
-
-#pragma mark - Weak proxy
 
 @implementation SLWeakTickProxy
 - (void)tick { [(SLLyricsView *)self.target tick]; }

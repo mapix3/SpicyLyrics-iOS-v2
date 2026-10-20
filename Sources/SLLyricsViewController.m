@@ -22,7 +22,6 @@ UIWindow *SLKeyWindow(void) {
     return nil;
 }
 
-/// Полноэкранный экран текста, открывается тапом по тексту на плеере.
 @implementation SLLyricsViewController {
     SLLyricsView *_lyricsView;
     UIView *_header;
@@ -111,7 +110,6 @@ UIWindow *SLKeyWindow(void) {
     CGFloat top = CGRectGetMaxY(_header.frame);
     _lyricsView.frame = b;
     _lyricsView.contentInsets = UIEdgeInsetsMake(top, side + 4, 0, side + 4);
-    // текст ниже шапки: двигаем скролл, фон оставляем на весь экран
     [_lyricsView setNeedsLayout];
 }
 

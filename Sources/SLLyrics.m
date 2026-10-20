@@ -7,7 +7,7 @@
 @implementation SLLine
 @end
 
-static const double SLInterludeMinGap = 3.0;   // как getLyricsBetweenShow() в Spicy Lyrics
+static const double SLInterludeMinGap = 3.0;
 
 static NSString *SLTrim(NSString *s) {
     return [s ?: @"" stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
@@ -40,7 +40,6 @@ static SLLine *SLInterlude(double start, double end, BOOL opposite) {
     return l;
 }
 
-/// Добавляет интерлюдии во вступление и в паузы >= 3 с.
 static NSArray<SLLine *> *SLWithInterludes(NSArray<SLLine *> *lines) {
     NSMutableArray *out = [NSMutableArray array];
     for (NSUInteger i = 0; i < lines.count; i++) {
@@ -83,13 +82,10 @@ static NSString *SLJoinWords(NSArray<SLWord *> *words) {
 
 @implementation SLLyrics
 
-#pragma mark - Spicy Lyrics API
-
 + (instancetype)lyricsFromSpicyJSON:(NSDictionary *)json duration:(double)duration {
     if (![json isKindOfClass:[NSDictionary class]]) return nil;
     NSString *type = SLStr(json[@"Type"]);
     SLLyrics *ly = [SLLyrics new];
-    // провайдер берём из каждого ответа — у одного трека он может меняться
     NSString *provider = SLStr(json[@"source"]);
     if ([provider isEqualToString:@"spicy_lyrics"]) ly.source = @"Spicy Lyrics";
     else if ([provider isEqualToString:@"apple_music"]) ly.source = SLLocFormat(@"via_spicy", @"Apple Music");

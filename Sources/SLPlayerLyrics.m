@@ -10,8 +10,8 @@
 #import "SLSettingsViewController.h"
 
 typedef NS_ENUM(NSInteger, SLHostKind) {
-    SLHostKindStrip = 0,   // строчка текста прямо на плеере (lyrics preview)
-    SLHostKindCard = 1,    // карточка «Текст» под плеером (Lyrics_CardElementImpl.CardView)
+    SLHostKindStrip = 0,
+    SLHostKindCard = 1,
 };
 
 static CGFloat SLHostCornerRadius(UIView *host) {
@@ -22,12 +22,7 @@ static CGFloat SLHostCornerRadius(UIView *host) {
     return 12;
 }
 
-#pragma mark - Overlay
-
-/// Наш текст поверх Spotify-шной вьюхи. Оригинальное содержимое прячется (alpha = 0),
-/// сама вьюха Spotify остаётся — её размер, анимации появления и место в плеере не трогаем.
 @interface SLPlayerLyricsOverlay : UIView <UIGestureRecognizerDelegate>
-/// Самостоятельное окно (не поверх вьюхи Spotify): ничего вокруг не прячет.
 @property (nonatomic) BOOL standalone;
 - (instancetype)initWithKind:(SLHostKind)kind;
 - (void)conceal;
@@ -111,7 +106,6 @@ static CGFloat SLHostCornerRadius(UIView *host) {
     [_guard invalidate];
     _guard = nil;
     if (!self.window || _standalone) return;
-    // Spotify может вернуть своему содержимому alpha (смена трека, анимации) — периодически прячем снова
     __weak typeof(self) weakSelf = self;
     _guard = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *t) { [weakSelf conceal]; }];
     [self conceal];
@@ -153,20 +147,16 @@ static CGFloat SLHostCornerRadius(UIView *host) {
     [SLLyricsViewController presentFromTopController];
 }
 
-// Тапы не уходят дальше по цепочке (в ячейку, к обработчикам Spotify)
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {}
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {}
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {}
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {}
 
-// Тапы Spotify на родительских вьюхах (открыть его собственный текст) ждут, пока не сработает наш
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)g shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)other {
     return [other isKindOfClass:[UITapGestureRecognizer class]] && other.view != self && [self isDescendantOfView:other.view];
 }
 
 @end
-
-#pragma mark - Hooks
 
 static const void *SLOverlayKey = &SLOverlayKey;
 
@@ -188,7 +178,6 @@ static Class SLFindClass(NSArray<NSString *> *names) {
 static void SLAttach(UIView *host, SLHostKind kind) {
     if (!host.window) return;
     SLPlayerLyricsOverlay *ov = objc_getAssociatedObject(host, SLOverlayKey);
-    // вложенные вьюхи текста Spotify: наш текст уже стоит на внешней — внутренний не нужен
     for (UIView *p = host.superview; p; p = p.superview) {
         if (objc_getAssociatedObject(p, SLOverlayKey)) {
             if (ov) { [ov removeFromSuperview]; objc_setAssociatedObject(host, SLOverlayKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
@@ -221,7 +210,6 @@ static void SLHookHost(NSString *tag, NSArray<NSString *> *names, SLHostKind kin
             };
         });
     }
-    // если тап всё-таки дошёл до Spotify — открываем наш экран, а не его
     SEL tapped = NSSelectorFromString(@"lyricsTapped");
     if ([cls instancesRespondToSelector:tapped]) {
         SLHook(cls, tapped, ^id(IMP orig) {
@@ -230,18 +218,11 @@ static void SLHookHost(NSString *tag, NSArray<NSString *> *names, SLHostKind kin
     }
 }
 
-#pragma mark - Виртуальное окно текста в плеере
-
-// Карточки под плеером — ячейки Element_List.CollectionViewCell в коллекции NPV (самоподстраивающиеся по высоте).
-// Первая карточка (ip 0.0) становится выше на высоту нашего окна: окно сверху, её содержимое — ниже.
-// Если первая карточка — текст самого Spotify, она целиком становится нашим окном; если он дальше — схлопывается.
-// Порядок и набор карточек присылает сервер, так что окно есть у любого трека, даже если у Spotify нет текста.
-
 typedef NS_ENUM(NSInteger, SLCellMode) {
     SLCellModeNone = 0,
-    SLCellModePrepend = 1,    // наше окно + исходная карточка ниже
-    SLCellModeReplace = 2,    // карточка текста Spotify → наше окно
-    SLCellModeCollapse = 3,   // лишняя карточка текста Spotify → высота 0
+    SLCellModePrepend = 1,
+    SLCellModeReplace = 2,
+    SLCellModeCollapse = 3,
 };
 
 static const CGFloat SLCardHeight = 340;
@@ -253,7 +234,6 @@ static const void *SLDimmedKey = &SLDimmedKey;
 static const void *SLMaskKey = &SLMaskKey;
 static const CGFloat SLCardRadius = 16;
 
-/// Ячейка из коллекции под плеером: по самой коллекции или по типу содержимого (NowPlaying_ScrollAPI).
 static BOOL SLIsNPVCell(UICollectionViewCell *cell) {
     UIView *cv = cell.superview;
     if ([cv isKindOfClass:[UICollectionView class]]) return [cv.accessibilityIdentifier isEqualToString:SLNPVCollectionID];
@@ -289,7 +269,7 @@ static void SLApplyCellMode(UICollectionViewCell *cell) {
         CGRect f = CGRectMake(0, 0, b.size.width, MIN(SLCardHeight, b.size.height));
         if (!CGRectEqualToRect(card.frame, f)) card.frame = f;
     } else if (card.superview) {
-        [card removeFromSuperview];   // и его таймеры/отрисовка останавливаются
+        [card removeFromSuperview];
     }
 
     CAShapeLayer *mask = objc_getAssociatedObject(cell, SLMaskKey);
@@ -297,7 +277,6 @@ static void SLApplyCellMode(UICollectionViewCell *cell) {
         CGFloat d = SLCardHeight + SLCardGap;
         CGRect f = CGRectMake(0, d, b.size.width, MAX(0, b.size.height - d));
         if (!CGRectEqualToRect(content.frame, f)) content.frame = f;
-        // фон самой ячейки не должен проступать в зазоре между нашим окном и карточкой
         if (!mask) {
             mask = [CAShapeLayer layer];
             objc_setAssociatedObject(cell, SLMaskKey, mask, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -322,11 +301,6 @@ static void SLApplyCellMode(UICollectionViewCell *cell) {
     }
     cell.clipsToBounds = mode != SLCellModeNone;
 }
-
-#pragma mark - Строчка текста под обложкой
-
-// У треков без своего текста Spotify не оставляет места под строчку на плеере (контейнер скрыт, высота 0).
-// Ставим свою строчку в промежуток между обложкой и названием — только когда строчки Spotify не видно.
 
 static const void *SLGapKey = &SLGapKey;
 
@@ -425,7 +399,7 @@ static BOOL SLHasVisibleText(UIView *root) {
         if (v.bounds.size.width > 0) [queue addObjectsFromArray:v.subviews];
     }
 
-    CGFloat top = CGRectGetMaxY(art);   // отступ от обложки задаёт сама строчка (contentInsets.top)
+    CGFloat top = CGRectGetMaxY(art);
     CGFloat bottom = MIN(info, floating) - 8;
     CGFloat h = MIN(bottom - top, 110);
     BOOL show = !CGRectIsNull(art) && !spotifyStrip && info < CGFLOAT_MAX && h >= 48;
@@ -538,7 +512,6 @@ void SLInstallDebugHooks(void) {
 }
 
 void SLInstallPlayerHooks(void) {
-    // строчка текста на плеере — в 9.1.x встречается в нескольких вариантах
     SLHookHost(@"strip.canvas", @[@"_TtC17Canvas_CommonImpl26CanvasNowPlayingLyricsView",
                                   @"Canvas_CommonImpl.CanvasNowPlayingLyricsView"], SLHostKindStrip);
     SLHookHost(@"strip.container", @[@"_TtC22Lyrics_NPVContainerKit19LyricsContainerView",

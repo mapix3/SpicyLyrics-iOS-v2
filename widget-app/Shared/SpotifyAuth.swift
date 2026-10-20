@@ -1,7 +1,6 @@
 import Foundation
 import CryptoKit
 
-/// OAuth Spotify (Authorization Code + PKCE) — без секрета, только Client ID.
 enum SpotifyAuth {
     static let redirectURI = "spicylyricswidget://callback"
     static let callbackScheme = "spicylyricswidget"
@@ -31,8 +30,6 @@ enum SpotifyAuth {
     }
 
     static var isLoggedIn: Bool { tokens != nil }
-
-    // MARK: - PKCE
 
     static func makeVerifier() -> String {
         var bytes = [UInt8](repeating: 0, count: 48)
@@ -64,8 +61,6 @@ enum SpotifyAuth {
         return c.url!
     }
 
-    // MARK: - Tokens
-
     static func exchange(callback: URL, verifier: String) async throws {
         guard let code = URLComponents(url: callback, resolvingAgainstBaseURL: false)?
             .queryItems?.first(where: { $0.name == "code" })?.value else {
@@ -77,7 +72,6 @@ enum SpotifyAuth {
         ])
     }
 
-    /// Действующий access token (обновляется сам).
     static func accessToken() async throws -> String {
         guard let t = tokens else { throw AuthError.notLoggedIn }
         if t.expiresAt.timeIntervalSinceNow > 60 { return t.accessToken }

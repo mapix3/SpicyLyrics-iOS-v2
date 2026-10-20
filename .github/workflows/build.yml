@@ -37,7 +37,6 @@ jobs:
           gmake package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
           gmake clean
           gmake package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=
-          # dylib для сайдлоада (Sideloadly → Inject dylibs), без зависимости от Substrate
           gmake clean
           gmake FINALPACKAGE=1 ARCHS=arm64 SpicyLyricsiOS_LOGOS_DEFAULT_GENERATOR=internal
           cp .theos/obj/arm64/SpicyLyricsiOS.dylib packages/SpicyLyricsiOS-sideload.dylib
@@ -48,7 +47,6 @@ jobs:
         run: |
           pip3 install --break-system-packages https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
           curl -L -o Spotify.ipa "${{ github.event.inputs.ipa_url }}"
-          # 120 Гц на ProMotion: без этого ключа iOS режет анимации приложения до 60
           mkdir ipa && unzip -q Spotify.ipa -d ipa
           PLIST=$(ls -d ipa/Payload/*.app)/Info.plist
           /usr/libexec/PlistBuddy -c "Delete :CADisableMinimumFrameDurationOnPhone" "$PLIST" 2>/dev/null || true

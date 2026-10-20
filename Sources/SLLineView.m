@@ -5,8 +5,6 @@ static inline CGFloat SLEaseOut(CGFloat t) { return 1 - (1 - t) * (1 - t) * (1 -
 
 static const CGFloat SLDimAlpha = 0.35;
 
-#pragma mark - Syllable
-
 @interface SLSyllableView : UIView
 @property (nonatomic, strong) SLWord *word;
 @property (nonatomic, strong) UILabel *base;
@@ -55,7 +53,6 @@ static const CGFloat SLDimAlpha = 0.35;
 
 - (void)layoutSubviews {
     [super layoutSubviews];
-    // bounds.width = точный шаг слога; сами надписи чуть шире, чтобы не обрезать выступающие глифы
     CGRect r = self.bounds;
     r.size.width += ceil(_base.font.pointSize * 0.35);
     _base.frame = r;
@@ -83,7 +80,6 @@ static const CGFloat SLDimAlpha = 0.35;
     _fill.layer.shadowOpacity = glow;
     CGFloat lift = p <= 0 ? 0 : -_liftAmount * SLEaseOut(MIN(p * 1.6, 1));
     CGFloat scale = 1 + 0.035 * glow;
-    // масштаб от левого края слога, чтобы он не наезжал на предыдущий
     CGFloat dx = (scale - 1) * self.bounds.size.width / 2;
     CGAffineTransform t = CGAffineTransformMakeTranslation(dx, lift);
     self.transform = CGAffineTransformScale(t, scale, scale);
@@ -91,8 +87,6 @@ static const CGFloat SLDimAlpha = 0.35;
 }
 
 @end
-
-#pragma mark - Interlude dots
 
 @interface SLDotsView : UIView
 @property (nonatomic, strong) NSArray<UIView *> *dots;
@@ -129,14 +123,12 @@ static const CGFloat SLDimAlpha = 0.35;
         _dots[i].transform = CGAffineTransformMakeTranslation(0, -2 * SLEaseOut(dp));
     }
     CGFloat breathe = active ? 1.0 + 0.1 * sin(t * 2 * M_PI / 2.0) : 1.0;
-    CGFloat endFade = active ? SLClamp01((1 - p) / 0.06) : 1;   // в конце паузы точки «схлопываются»
+    CGFloat endFade = active ? SLClamp01((1 - p) / 0.06) : 1;
     CGFloat s = breathe * (0.4 + 0.6 * endFade);
     self.transform = CGAffineTransformMakeScale(s, s);
 }
 
 @end
-
-#pragma mark - Line
 
 @implementation SLLineView {
     SLLyricsType _type;
@@ -200,14 +192,12 @@ static const CGFloat SLDimAlpha = 0.35;
     return self;
 }
 
-/// Раскладка слогов: слоги одного слова держатся вместе, перенос — между словами.
 - (NSArray<SLSyllableView *> *)layoutWords:(NSArray<SLWord *> *)words font:(UIFont *)font width:(CGFloat)width
                                      right:(BOOL)right y:(CGFloat *)yOut dim:(CGFloat)dim into:(UIView *)host {
     NSDictionary *attrs = @{ NSFontAttributeName: font };
     CGFloat spaceW = [@" " sizeWithAttributes:attrs].width;
     CGFloat lineH = ceil(font.lineHeight * 1.12);
 
-    // группы слогов = слова
     NSMutableArray<NSMutableArray<SLWord *> *> *groups = [NSMutableArray array];
     NSMutableArray<SLWord *> *cur = nil;
     for (SLWord *w in words) {
@@ -227,7 +217,6 @@ static const CGFloat SLDimAlpha = 0.35;
         NSMutableString *prefix = [NSMutableString string];
         for (SLWord *w in g) {
             NSString *t = [w.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-            // шаг слога = ширина «слово до него + он» минус «слово до него»: учитывает кернинг между слогами
             [prefix appendString:t];
             CGFloat end = [prefix sizeWithAttributes:attrs].width;
             CGFloat sw = MAX(end - gw, 1);
@@ -241,7 +230,7 @@ static const CGFloat SLDimAlpha = 0.35;
         }
         for (NSUInteger i = 0; i < g.count; i++) {
             CGFloat sw = ws[i].doubleValue;
-            if (x > 0 && x + sw > width) {     // слово шире строки — переносим посреди
+            if (x > 0 && x + sw > width) {
                 x = 0; y += lineH;
                 [rows addObject:[NSMutableArray array]];
                 [rowWidths addObject:@0];
@@ -274,7 +263,6 @@ static const CGFloat SLDimAlpha = 0.35;
         double dur = MAX(w.end - w.start, 0.03);
         CGFloat p = SLClamp01((t - w.start) / dur);
         CGFloat g = 0;
-        // длинные слоги светятся, как «Emphasize» в Spicy Lyrics
         if (glow && p > 0 && p < 1 && dur >= 0.9) g = sin(M_PI * p) * MIN(0.9, 0.45 + (dur - 0.9) * 0.4);
         [v setProgress:p glow:g];
     }
@@ -305,7 +293,6 @@ static const CGFloat SLDimAlpha = 0.35;
         return;
     }
     if (!changed) return;
-    // прошедшие — залиты, будущие — пустые; после перемотки тоже корректно
     CGFloat p = state == SLLineStatePast ? 1 : 0;
     for (SLSyllableView *v in _lead) [v setProgress:p glow:0];
     for (SLSyllableView *v in _bg) [v setProgress:p glow:0];

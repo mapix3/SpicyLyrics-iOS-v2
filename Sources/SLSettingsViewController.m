@@ -60,7 +60,6 @@ extern UIWindow *SLKeyWindow(void);
     title.textColor = UIColor.whiteColor;
     [stack addArrangedSubview:title];
 
-
     [stack addArrangedSubview:[self caption:SLLoc(@"size")]];
     UISlider *size = [UISlider new];
     size.minimumValue = 0.7; size.maximumValue = 1.6; size.value = s.fontScale;

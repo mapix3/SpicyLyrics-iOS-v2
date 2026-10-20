@@ -3,10 +3,9 @@
 #import "SLLyricsProvider.h"
 #import "SLDebug.h"
 
-static const void *SLCaptureKey = &SLCaptureKey;   // NSMutableData — копия ответа Spotify
-static const void *SLTrackKey = &SLTrackKey;       // id трека
+static const void *SLCaptureKey = &SLCaptureKey;
+static const void *SLTrackKey = &SLTrackKey;
 
-/// id трека, если это запрос текста Spotify: .../color-lyrics/v2/track/<id>[/image/...]
 static NSString *SLLyricsTrackId(id task) {
     if (![task isKindOfClass:[NSURLSessionTask class]]) return nil;
     NSURLSessionTask *t = task;
