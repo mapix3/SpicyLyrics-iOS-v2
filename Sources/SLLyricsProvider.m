@@ -1,0 +1,274 @@
+#import "SLLyricsProvider.h"
+#import "SLLocalization.h"
+#import "SLSettings.h"
+#import "SLSecrets.h"
+
+NSNotificationName const SLLyricsDidLoadNotification = @"SLLyricsDidLoadNotification";
+
+static NSString *const SLOwnHeader = @"X-SpicyLyricsiOS";
+static NSString *const SLUserAgent = @"SpicyLyricsiOS/2.0 (https://github.com/mapix3/SpicyLyrics-iOS-v2)";
+static NSString *const SLSpicyAPI = @"https://api.spicylyrics.org/v1/lyrics/";   // Developer API
+
+@interface SLLyricsProvider ()
+@property (nonatomic, strong) NSURLSession *session;
+@property (nonatomic, strong) NSCache<NSString *, SLLyrics *> *cache;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *idForKey;   // trackKey -> track id
+@property (nonatomic, strong) NSMutableArray<NSString *> *sniffedIds;                  // последние id из запросов Spotify
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableArray<SLLyricsCompletion> *> *pending;
+@property (atomic, copy) NSString *spotifyToken;
+@property (atomic) NSTimeInterval tokenStamp;
+@end
+
+static NSString *SLEnc(NSString *s) {
+    NSMutableCharacterSet *allowed = [[NSCharacterSet URLQueryAllowedCharacterSet] mutableCopy];
+    [allowed removeCharactersInString:@"&+=?/:"];
+    return [s ?: @"" stringByAddingPercentEncodingWithAllowedCharacters:allowed] ?: @"";
+}
+
+static NSString *SLNorm(NSString *s) {
+    NSString *t = [[s ?: @"" lowercaseString] stringByFoldingWithOptions:NSDiacriticInsensitiveSearch locale:nil];
+    NSRange dash = [t rangeOfString:@" - "];
+    if (dash.location != NSNotFound) t = [t substringToIndex:dash.location];
+    NSRange par = [t rangeOfString:@" ("];
+    if (par.location != NSNotFound) t = [t substringToIndex:par.location];
+    NSCharacterSet *keep = [NSCharacterSet alphanumericCharacterSet];
+    NSMutableString *o = [NSMutableString string];
+    for (NSUInteger i = 0; i < t.length; i++) {
+        unichar c = [t characterAtIndex:i];
+        if ([keep characterIsMember:c]) [o appendFormat:@"%C", c];
+    }
+    return o;
+}
+
+static NSString *SLCleanTitle(NSString *t) {
+    NSString *s = t ?: @"";
+    NSRange dash = [s rangeOfString:@" - "];
+    if (dash.location != NSNotFound) s = [s substringToIndex:dash.location];
+    NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"\\s*[\\(\\[](feat\\.?|ft\\.?|with|prod\\.?)[^\\)\\]]*[\\)\\]]" options:NSRegularExpressionCaseInsensitive error:nil];
+    s = [re stringByReplacingMatchesInString:s options:0 range:NSMakeRange(0, s.length) withTemplate:@""];
+    return [s stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+}
+
+static NSString *SLFirstArtist(NSString *a) {
+    NSString *s = a ?: @"";
+    for (NSString *sep in @[@", ", @" & ", @" feat. ", @" x "]) {
+        NSRange r = [s rangeOfString:sep];
+        if (r.location != NSNotFound) s = [s substringToIndex:r.location];
+    }
+    return s;
+}
+
+@implementation SLLyricsProvider
+
++ (instancetype)shared {
+    static SLLyricsProvider *s;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ s = [SLLyricsProvider new]; });
+    return s;
+}
+
+- (instancetype)init {
+    if ((self = [super init])) {
+        NSURLSessionConfiguration *cfg = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+        cfg.timeoutIntervalForRequest = 15;
+        cfg.HTTPAdditionalHeaders = @{ SLOwnHeader: @"1" };
+        _session = [NSURLSession sessionWithConfiguration:cfg];
+        _cache = [NSCache new];
+        _cache.countLimit = 80;
+        _idForKey = [NSMutableDictionary dictionary];
+        _sniffedIds = [NSMutableArray array];
+        _pending = [NSMutableDictionary dictionary];
+    }
+    return self;
+}
+
+- (void)clearCache {
+    [self.cache removeAllObjects];
+}
+
+- (SLLyrics *)cachedLyricsForKey:(NSString *)key {
+    return key ? [self.cache objectForKey:key] : nil;
+}
+
+#pragma mark - Sniffing
+
+- (void)observeRequest:(NSURLRequest *)request {
+    NSDictionary *h = request.allHTTPHeaderFields;
+    if (h[SLOwnHeader]) return;
+    NSURL *url = request.URL;
+    if (![url.host hasSuffix:@"spotify.com"] && ![url.host hasSuffix:@"spotify.net"]) return;
+
+    NSString *auth = h[@"Authorization"] ?: h[@"authorization"];
+    if ([auth hasPrefix:@"Bearer "] && auth.length > 47) {
+        self.spotifyToken = [auth substringFromIndex:7];
+        self.tokenStamp = [NSDate date].timeIntervalSince1970;
+    }
+
+    // Spotify сам запрашивает текст текущего трека: .../color-lyrics/v2/track/<id>
+    static NSRegularExpression *re;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        re = [NSRegularExpression regularExpressionWithPattern:@"/(?:color-)?lyrics/v\\d+/track/([A-Za-z0-9]{22})" options:0 error:nil];
+    });
+    NSString *path = url.path ?: @"";
+    NSTextCheckingResult *m = [re firstMatchInString:path options:0 range:NSMakeRange(0, path.length)];
+    if (m) {
+        NSString *tid = [path substringWithRange:[m rangeAtIndex:1]];
+        @synchronized (self) {
+            [self.sniffedIds removeObject:tid];
+            [self.sniffedIds insertObject:tid atIndex:0];
+            while (self.sniffedIds.count > 6) [self.sniffedIds removeLastObject];
+        }
+    }
+}
+
+- (BOOL)hasSpotifyToken {
+    return self.spotifyToken.length && ([NSDate date].timeIntervalSince1970 - self.tokenStamp) < 55 * 60;
+}
+
+- (NSDictionary *)spotifyAuth {
+    return @{ @"Authorization": [@"Bearer " stringByAppendingString:self.spotifyToken ?: @""], @"App-Platform": @"iOS" };
+}
+
+#pragma mark - HTTP
+
+- (void)request:(NSString *)url method:(NSString *)method body:(NSData *)body headers:(NSDictionary *)headers
+     completion:(void (^)(id json, NSInteger status))completion {
+    NSURL *u = [NSURL URLWithString:url];
+    if (!u) { completion(nil, -1); return; }
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:u];
+    req.HTTPMethod = method;
+    req.HTTPBody = body;
+    [req setValue:SLUserAgent forHTTPHeaderField:@"User-Agent"];
+    [req setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+    [req setValue:@"1" forHTTPHeaderField:SLOwnHeader];
+    if (body) [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    [headers enumerateKeysAndObjectsUsingBlock:^(NSString *k, NSString *v, BOOL *stop) { [req setValue:v forHTTPHeaderField:k]; }];
+    [[self.session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
+        NSInteger status = [(NSHTTPURLResponse *)resp statusCode];
+        id json = data.length ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        completion(err ? nil : json, err ? -1 : status);
+    }] resume];
+}
+
+- (void)getJSON:(NSString *)url headers:(NSDictionary *)headers completion:(void (^)(id json, NSInteger status))completion {
+    [self request:url method:@"GET" body:nil headers:headers completion:completion];
+}
+
+#pragma mark - Track id
+
+/// Совпадает ли трек Spotify с тем, что сейчас играет.
+static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, double duration) {
+    if (![t isKindOfClass:[NSDictionary class]]) return NO;
+    double d = [t[@"duration_ms"] doubleValue] / 1000.0;
+    if (duration > 0 && fabs(d - duration) > 3.0) return NO;
+    NSString *a = SLNorm(title), *b = SLNorm(t[@"name"]);
+    if (a.length && b.length && ![a hasPrefix:b] && ![b hasPrefix:a]) return NO;
+    NSString *want = SLNorm(SLFirstArtist(artist));
+    if (!want.length) return YES;
+    for (NSDictionary *ar in t[@"artists"]) {
+        NSString *n = SLNorm(ar[@"name"]);
+        if ([n isEqualToString:want] || [n hasPrefix:want] || [want hasPrefix:n]) return YES;
+    }
+    return NO;
+}
+
+- (void)resolveTrackIdForTitle:(NSString *)title artist:(NSString *)artist duration:(double)duration
+                           uri:(NSString *)uri key:(NSString *)key completion:(void (^)(NSString *trackId))completion {
+    if ([uri hasPrefix:@"spotify:track:"] && uri.length >= 36) { completion([uri substringFromIndex:14]); return; }
+    NSString *known;
+    @synchronized (self) { known = self.idForKey[key]; }
+    if (known) { completion(known); return; }
+    if (![self hasSpotifyToken]) { completion(nil); return; }
+
+    void (^remember)(NSString *) = ^(NSString *tid) {
+        if (tid) { @synchronized (self) { self.idForKey[key] = tid; } }
+        completion(tid);
+    };
+
+    // 1) id из запросов самого Spotify — проверяем, что это именно текущий трек
+    NSArray *candidates;
+    @synchronized (self) { candidates = [self.sniffedIds copy]; }
+    void (^search)(void) = ^{
+        NSString *q = [NSString stringWithFormat:@"track:%@ artist:%@", SLCleanTitle(title), SLFirstArtist(artist)];
+        NSString *url = [NSString stringWithFormat:@"https://api.spotify.com/v1/search?type=track&limit=10&q=%@", SLEnc(q)];
+        [self getJSON:url headers:[self spotifyAuth] completion:^(NSDictionary *json, NSInteger status) {
+            NSArray *items = [json isKindOfClass:[NSDictionary class]] ? json[@"tracks"][@"items"] : nil;
+            NSString *best = nil; double bestDiff = 1e9;
+            for (NSDictionary *it in items) {
+                if (!SLTrackMatches(it, title, artist, duration)) continue;
+                double d = fabs([it[@"duration_ms"] doubleValue] / 1000.0 - duration);
+                if (d < bestDiff) { bestDiff = d; best = it[@"id"]; }
+            }
+            remember(best);
+        }];
+    };
+    if (!candidates.count) { search(); return; }
+
+    NSString *ids = [candidates componentsJoinedByString:@","];
+    [self getJSON:[@"https://api.spotify.com/v1/tracks?ids=" stringByAppendingString:ids] headers:[self spotifyAuth]
+       completion:^(NSDictionary *json, NSInteger status) {
+        NSArray *tracks = [json isKindOfClass:[NSDictionary class]] ? json[@"tracks"] : nil;
+        for (NSDictionary *t in tracks) {
+            if (SLTrackMatches(t, title, artist, duration)) { remember(t[@"id"]); return; }
+        }
+        search();
+    }];
+}
+
+#pragma mark - Public
+
+- (void)lyricsForTitle:(NSString *)title artist:(NSString *)artist album:(NSString *)album duration:(double)duration
+              trackURI:(NSString *)uri trackKey:(NSString *)key completion:(SLLyricsCompletion)completion {
+    SLLyrics *cached = [self.cache objectForKey:key];
+    if (cached) { completion(cached, nil); return; }
+
+    // склеиваем одновременные запросы одного трека
+    @synchronized (self) {
+        NSMutableArray *waiting = self.pending[key];
+        if (waiting) { [waiting addObject:[completion copy]]; return; }
+        self.pending[key] = [NSMutableArray arrayWithObject:[completion copy]];
+    }
+
+    void (^finish)(SLLyrics *, NSString *) = ^(SLLyrics *ly, NSString *err) {
+        if (ly) [self.cache setObject:ly forKey:key];
+        NSArray *cbs;
+        @synchronized (self) { cbs = self.pending[key]; [self.pending removeObjectForKey:key]; }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            for (SLLyricsCompletion cb in cbs) cb(ly, err);
+            if (ly) [[NSNotificationCenter defaultCenter] postNotificationName:SLLyricsDidLoadNotification object:key];
+        });
+    };
+
+    // единственный источник — Spicy Lyrics Developer API
+    [self resolveTrackIdForTitle:title artist:artist duration:duration uri:uri key:key completion:^(NSString *tid) {
+        [self spicyTrackId:tid duration:duration completion:^(SLLyrics *ly, NSString *err) {
+            finish(ly, ly ? nil : (err ?: SLLoc(@"err_spicy_none")));
+        }];
+    }];
+}
+
+#pragma mark - Spicy Lyrics
+
+- (void)spicyTrackId:(NSString *)tid duration:(double)duration completion:(void (^)(SLLyrics *, NSString *))completion {
+    if (![SL_SPICY_API_KEY length]) { completion(nil, SLLoc(@"err_no_key")); return; }
+    if (!tid.length) { completion(nil, SLLoc(@"err_no_track")); return; }
+
+    NSDictionary *headers = @{ @"Authorization": [@"Bearer " stringByAppendingString:SL_SPICY_API_KEY] };
+    [self request:[SLSpicyAPI stringByAppendingString:tid] method:@"GET" body:nil headers:headers
+       completion:^(NSDictionary *json, NSInteger status) {
+        NSDictionary *body = [json isKindOfClass:[NSDictionary class]] ? json[@"Body"] : nil;
+        if (status == 200 && [body isKindOfClass:[NSDictionary class]]) {
+            SLLyrics *ly = [SLLyrics lyricsFromSpicyJSON:body duration:duration];
+            completion(ly, ly ? nil : SLLoc(@"err_format"));
+            return;
+        }
+        if (status == 404) { completion(nil, SLLoc(@"err_spicy_none")); return; }
+        NSString *msg = [body isKindOfClass:[NSDictionary class]] && [body[@"message"] isKindOfClass:[NSString class]] ? body[@"message"] : nil;
+        NSString *code = [body isKindOfClass:[NSDictionary class]] && [body[@"error"] isKindOfClass:[NSString class]] ? body[@"error"] : nil;
+        if (status <= 0) { completion(nil, SLLoc(@"err_spicy_down")); return; }
+        completion(nil, [NSString stringWithFormat:@"Spicy Lyrics: %ld %@%@", (long)status, code ?: @"", msg ? [@" — " stringByAppendingString:msg] : @""]);
+    }];
+}
+
+@end

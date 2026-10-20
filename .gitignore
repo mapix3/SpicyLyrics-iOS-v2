@@ -1,0 +1,6 @@
+.theos/
+packages/
+.DS_Store
+widget-app/*.xcodeproj/
+widget-app/build/
+widget-app/out/

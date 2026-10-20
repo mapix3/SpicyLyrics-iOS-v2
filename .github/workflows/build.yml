@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: "Прямая ссылка на РАСШИФРОВАННЫЙ Spotify .ipa (необязательно — тогда соберётся IPA с твиком)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Theos
+        run: |
+          brew install ldid make xz
+          git clone --recursive --depth 1 https://github.com/theos/theos.git "$HOME/theos"
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/theos/sdks.git "$RUNNER_TEMP/sdks"
+          cd "$RUNNER_TEMP/sdks" && git sparse-checkout set iPhoneOS16.5.sdk
+          cp -R iPhoneOS16.5.sdk "$HOME/theos/sdks/"
+          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
+
+      - name: Spicy API key
+        env:
+          SPICY_API_KEY: ${{ secrets.SPICY_API_KEY }}
+        run: |
+          if [ -n "$SPICY_API_KEY" ]; then
+            printf '#define SL_SPICY_API_KEY @"%s"\n' "$SPICY_API_KEY" > Sources/SLSecrets.h
+          fi
+
+      - name: Build rootless + rootful
+        run: |
+          gmake package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          gmake clean
+          gmake package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=
+          # dylib для сайдлоада (Sideloadly → Inject dylibs), без зависимости от Substrate
+          gmake clean
+          gmake FINALPACKAGE=1 ARCHS=arm64 SpicyLyricsiOS_LOGOS_DEFAULT_GENERATOR=internal
+          cp .theos/obj/arm64/SpicyLyricsiOS.dylib packages/SpicyLyricsiOS-sideload.dylib
+          ls -la packages
+
+      - name: Inject into IPA
+        if: ${{ github.event.inputs.ipa_url != '' }}
+        run: |
+          pip3 install --break-system-packages https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
+          curl -L -o Spotify.ipa "${{ github.event.inputs.ipa_url }}"
+          cyan -i Spotify.ipa -o packages/Spotify-SpicyLyrics.ipa -u -w -f packages/*iphoneos-arm.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpicyLyricsiOS
+          path: packages/*
