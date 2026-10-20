@@ -97,12 +97,11 @@ static void SLPrefetch(void) {
 
 static NSString *const SLLaunchGuardKey = @"SpicyLyricsiOS.launchCrashes";
 
-/// Хуки на классы Spotify ставим уже после старта процесса (не в конструкторе dylib).
-static void SLInstallSpotifyHooks(void) {
-    static BOOL safeMode, checked;
-    if (!checked) {
-        checked = YES;
-        // Spotify падал на старте 3 раза подряд — на этот запуск не трогаем его классы, чтобы он хотя бы открылся
+/// Spotify падал на старте 3 раза подряд — на этот запуск не трогаем его классы, чтобы он хотя бы открылся.
+static BOOL SLSafeMode(void) {
+    static BOOL safeMode;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
         NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
         NSInteger crashes = [d integerForKey:SLLaunchGuardKey];
         safeMode = crashes >= 3;
@@ -111,8 +110,14 @@ static void SLInstallSpotifyHooks(void) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(20 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [[NSUserDefaults standardUserDefaults] setInteger:0 forKey:SLLaunchGuardKey];
         });
-    }
-    if (safeMode) return;
+    });
+    return safeMode;
+}
+
+/// Остальные хуки на классы Spotify ставим уже после старта процесса.
+static void SLInstallSpotifyHooks(void) {
+    if (SLSafeMode()) return;
+    SLInstallLyricsConfigHook();
     SLInstallPlayerHooks();
     SLInstallLyricsNetworkHooks();
 }
@@ -120,6 +125,8 @@ static void SLInstallSpotifyHooks(void) {
 %ctor {
     @autoreleasepool {
         SLInstallNetworkSniffer();
+        // конфиг текста Spotify читает на старте — этот хук нужен до него
+        if (!SLSafeMode()) SLInstallLyricsConfigHook();
         dispatch_async(dispatch_get_main_queue(), ^{ SLInstallSpotifyHooks(); });
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
         [nc addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue]

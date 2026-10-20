@@ -8,4 +8,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Можно вызывать повторно — уже установленные хуки не дублируются.
 FOUNDATION_EXPORT void SLInstallPlayerHooks(void);
 
+/// Включает в конфиге Spotify запрос текста для всех треков. Ставится как можно раньше.
+FOUNDATION_EXPORT void SLInstallLyricsConfigHook(void);
+
 NS_ASSUME_NONNULL_END

@@ -211,6 +211,30 @@ static void SLHookHost(NSString *tag, NSArray<NSString *> *names, SLHostKind kin
     }
 }
 
+/// Spotify запрашивает текст только у треков, у которых он сам знает про текст (has_lyrics).
+/// В его remote config есть флаг ios-feature-lyrics.enable_has_lyrics_check_bypass — включаем его,
+/// тогда запрос уходит для любого трека, а 404 подменяет SLLyricsNetwork.
+void SLInstallLyricsConfigHook(void) {
+    static BOOL done;
+    if (done) return;
+    Class cls = SLFindClass(@[@"_TtC24Lyrics_ConfigurationImpl37SPTLyrics_ConfigurationImplProperties",
+                              @"Lyrics_ConfigurationImpl.SPTLyrics_ConfigurationImplProperties"]);
+    Ivar flag = cls ? class_getInstanceVariable(cls, "enableHasLyricsCheckBypass") : NULL;
+    if (!flag) return;
+    ptrdiff_t offset = ivar_getOffset(flag);
+    SEL sel = NSSelectorFromString(@"initWithConfigurationProvider:");
+    done = SLHook(cls, sel, ^id(IMP orig) {
+        return ^id(id me, id provider) {
+            id obj = ((id (*)(id, SEL, id))orig)(me, sel, provider);
+            if (obj) {
+                uint8_t *p = (uint8_t *)(__bridge void *)obj + offset;
+                if (*p <= 1) *p = 1;   // Bool — пишем только если там действительно 0/1
+            }
+            return obj;
+        };
+    });
+}
+
 void SLInstallPlayerHooks(void) {
     // строчка текста на плеере — в 9.1.x встречается в нескольких вариантах
     SLHookHost(@"strip.canvas", @[@"_TtC17Canvas_CommonImpl26CanvasNowPlayingLyricsView",
