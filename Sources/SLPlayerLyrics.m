@@ -1,7 +1,6 @@
 #import "SLPlayerLyrics.h"
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
-#import <objc/message.h>
 #import "SLLyricsView.h"
 #import "SLLyricsViewController.h"
 #import "SLLocalization.h"
@@ -212,61 +211,6 @@ static void SLHookHost(NSString *tag, NSArray<NSString *> *names, SLHostKind kin
     }
 }
 
-/// Только обычные треки (не реклама, не подкасты, не локальные файлы).
-static BOOL SLIsMusicTrack(id track) {
-    SEL sel = NSSelectorFromString(@"URI");
-    if (![track respondsToSelector:sel]) return NO;
-    id uri = ((id (*)(id, SEL))objc_msgSend)(track, sel);
-    NSString *s = [uri isKindOfClass:[NSURL class]] ? [uri absoluteString] : ([uri isKindOfClass:[NSString class]] ? uri : nil);
-    return [s hasPrefix:@"spotify:track:"];
-}
-
-/// Spotify показывает строчку и карточку текста, только если у него самого есть текст трека.
-/// Говорим ему, что текст есть всегда, — тогда наша карточка (с текстом или «текст не найден») видна на любом треке.
-static void SLForceLyricsAvailability(void) {
-    SEL meta = NSSelectorFromString(@"metadata");
-    SEL metaKey = NSSelectorFromString(@"metadataValueForKey:");
-    SEL hasLyrics = NSSelectorFromString(@"spt_hasLyrics");
-    for (NSString *name in @[@"SPTPlayerTrack", @"SPTPlayerTrackImplementation"]) {
-        NSString *tag = [@"meta:" stringByAppendingString:name];
-        Class cls = NSClassFromString(name);
-        if (!cls || [SLInstalled() containsObject:tag]) continue;
-        [SLInstalled() addObject:tag];
-        SLHook(cls, meta, ^id(IMP orig) {
-            return ^NSDictionary *(id track) {
-                NSDictionary *m = ((NSDictionary *(*)(id, SEL))orig)(track, meta);
-                if (![m isKindOfClass:[NSDictionary class]] || [m[@"has_lyrics"] isEqual:@"true"] || !SLIsMusicTrack(track)) return m;
-                NSMutableDictionary *mm = [m mutableCopy];
-                mm[@"has_lyrics"] = @"true";
-                return mm;
-            };
-        });
-        SLHook(cls, metaKey, ^id(IMP orig) {
-            return ^id(id track, id key) {
-                if ([key isEqual:@"has_lyrics"] && SLIsMusicTrack(track)) return @"true";
-                return ((id (*)(id, SEL, id))orig)(track, metaKey, key);
-            };
-        });
-        SLHook(cls, hasLyrics, ^id(IMP orig) {
-            return ^BOOL(id track) {
-                return SLIsMusicTrack(track) || ((BOOL (*)(id, SEL))orig)(track, hasLyrics);
-            };
-        });
-    }
-
-    // старые версии Spotify (до 9.1)
-    if (![SLInstalled() containsObject:@"scrollProvider"]) {
-        Class cls = SLFindClass(@[@"_TtC15Lyrics_CoreImpl20LyricsScrollProvider", @"Lyrics_CoreImpl.LyricsScrollProvider"]);
-        SEL en = NSSelectorFromString(@"isEnabledForTrack:");
-        BOOL ok = cls && SLHook(cls, en, ^id(IMP orig) {
-            return ^BOOL(id provider, id track) {
-                return SLIsMusicTrack(track) || ((BOOL (*)(id, SEL, id))orig)(provider, en, track);
-            };
-        });
-        if (ok) [SLInstalled() addObject:@"scrollProvider"];
-    }
-}
-
 void SLInstallPlayerHooks(void) {
     // строчка текста на плеере — в 9.1.x встречается в нескольких вариантах
     SLHookHost(@"strip.canvas", @[@"_TtC17Canvas_CommonImpl26CanvasNowPlayingLyricsView",
@@ -279,5 +223,4 @@ void SLInstallPlayerHooks(void) {
                                    @"Lyrics_NPVElementsKitImpl.LyricsElementContainerView"], SLHostKindStrip);
     SLHookHost(@"card", @[@"_TtC22Lyrics_CardElementImpl8CardView",
                           @"Lyrics_CardElementImpl.CardView"], SLHostKindCard);
-    SLForceLyricsAvailability();
 }

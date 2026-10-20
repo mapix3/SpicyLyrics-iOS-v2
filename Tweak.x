@@ -93,16 +93,38 @@ static void SLPrefetch(void) {
                                      trackURI:np.trackURI trackKey:np.trackKey completion:^(SLLyrics *ly, NSString *err) {}];
 }
 
+#pragma mark - Запуск
+
+static NSString *const SLLaunchGuardKey = @"SpicyLyricsiOS.launchCrashes";
+
+/// Хуки на классы Spotify ставим уже после старта процесса (не в конструкторе dylib).
+static void SLInstallSpotifyHooks(void) {
+    static BOOL safeMode, checked;
+    if (!checked) {
+        checked = YES;
+        // Spotify падал на старте 3 раза подряд — на этот запуск не трогаем его классы, чтобы он хотя бы открылся
+        NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+        NSInteger crashes = [d integerForKey:SLLaunchGuardKey];
+        safeMode = crashes >= 3;
+        [d setInteger:safeMode ? 0 : crashes + 1 forKey:SLLaunchGuardKey];
+        [d synchronize];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(20 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [[NSUserDefaults standardUserDefaults] setInteger:0 forKey:SLLaunchGuardKey];
+        });
+    }
+    if (safeMode) return;
+    SLInstallPlayerHooks();
+    SLInstallLyricsNetworkHooks();
+}
+
 %ctor {
     @autoreleasepool {
         SLInstallNetworkSniffer();
-        SLInstallPlayerHooks();
-        SLInstallLyricsNetworkHooks();
+        dispatch_async(dispatch_get_main_queue(), ^{ SLInstallSpotifyHooks(); });
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
         [nc addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue]
                     usingBlock:^(NSNotification *n) {
-            SLInstallPlayerHooks();   // на случай, если классы Spotify подгрузились позже
-            SLInstallLyricsNetworkHooks();
+            SLInstallSpotifyHooks();   // на случай, если классы Spotify подгрузились позже
         }];
         [nc addObserverForName:SLTrackDidChangeNotification object:nil queue:[NSOperationQueue mainQueue]
                     usingBlock:^(NSNotification *n) {
