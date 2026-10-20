@@ -425,7 +425,7 @@
     return _mode == SLLyricsViewModeFull ? 0.3 : _mode == SLLyricsViewModeCompact ? 0.32 : ([self isTall] ? 0.3 : 0);
 }
 
-/// Строчка на плеере: текущая строка видна целиком (даже в две строки), затухание — только после неё.
+/// Строчка на плеере: текущая строка всегда видна целиком (даже в две строки).
 - (void)updateStripFade {
     if (_mode != SLLyricsViewModeStrip || [self isTall]) return;
     CAGradientLayer *fade = (CAGradientLayer *)_scrollHost.layer.mask;
@@ -435,8 +435,10 @@
     NSInteger idx = MAX(_primary, 0);
     if (_lyrics.type != SLLyricsTypeStatic && idx < (NSInteger)_lineViews.count) lineH = _lineViews[idx].contentHeight;
     if (lineH <= 0) lineH = h * 0.5;
-    CGFloat solid = MIN(1.0, (h * [self anchorFraction] + lineH + 4) / h);
-    CGFloat end = MIN(1.0, solid + 18.0 / h);
+    // обычное затухание — с 70% высоты; ниже — только если текущая строка туда не влезает
+    CGFloat need = (h * [self anchorFraction] + lineH + 4) / h;
+    CGFloat solid = MIN(1.0, MAX(0.7, need));
+    CGFloat end = need > 0.7 ? MIN(1.0, solid + 18.0 / h) : 1.0;
     fade.locations = @[@0, @0, @(solid), @(MAX(end, solid))];
 }
 
