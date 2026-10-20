@@ -371,6 +371,13 @@ static BOOL SLHasVisibleText(UIView *root) {
     for (NSUInteger i = 0; i < queue.count && i < 3000; i++) {
         UIView *v = queue[i];
         if (v == self.strip || v.hidden || v.alpha < 0.01) continue;
+        if ([v isKindOfClass:[SLPlayerLyricsOverlay class]]) {
+            if (!((SLPlayerLyricsOverlay *)v).standalone && v.bounds.size.height > 8 && SLVisibleIn(v, root)) {
+                CGRect r = [v convertRect:v.bounds toView:root];
+                if (CGRectIntersectsRect(r, bounds)) spotifyStrip = YES;
+            }
+            continue;
+        }
         NSString *cls = NSStringFromClass([v class]);
         NSString *owner = [v.nextResponder isKindOfClass:[UIViewController class]] ? NSStringFromClass([v.nextResponder class]) : nil;
         if ([cls containsString:@"CoverArtTiltView"] && SLVisibleIn(v, root)) {
@@ -381,12 +388,12 @@ static BOOL SLHasVisibleText(UIView *root) {
             }
             continue;
         }
-        if ([cls containsString:@"LyricsElementWrapperView"]) {
+        if ([cls containsString:@"LyricsElementWrapperView"] || [cls containsString:@"LyricsContainerView"] ||
+            [cls containsString:@"CanvasNowPlayingLyricsView"]) {
             if (v.bounds.size.height > 8 && SLVisibleIn(v, root)) {
                 CGRect r = [v convertRect:v.bounds toView:root];
-                if (CGRectIntersectsRect(r, bounds)) spotifyStrip = YES;
+                if (CGRectIntersectsRect(r, bounds)) { spotifyStrip = YES; continue; }
             }
-            continue;
         }
         if ([owner containsString:@"InformationElementsUnit"] && SLVisibleIn(v, root)) {
             info = MIN(info, CGRectGetMinY([v convertRect:v.bounds toView:root]));
