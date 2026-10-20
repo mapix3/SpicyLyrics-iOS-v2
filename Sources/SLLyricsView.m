@@ -31,6 +31,8 @@
     NSIndexSet *_activeSet;
     CGFloat _builtWidth, _builtHeight;
     BOOL _builtTall;
+    BOOL _linkFast, _linkConfigured;
+    NSUInteger _visibilityTicks;
     CADisplayLink *_link;
     NSString *_loadingKey;
 
@@ -139,13 +141,8 @@
     if (self.window) {
         if (!_link) {
             _link = [CADisplayLink displayLinkWithTarget:[self weakProxy] selector:@selector(tick)];
-            if ([_link respondsToSelector:@selector(setPreferredFrameRateRange:)]) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunguarded-availability-new"
-                CAFrameRateRange r = { .minimum = 30, .maximum = 120, .preferred = 120 };
-                _link.preferredFrameRateRange = r;
-#pragma clang diagnostic pop
-            }
+            _linkFast = NO;
+            [self setLinkFast:YES];
             [_link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
         }
         [[SLNowPlaying shared] refreshFromCenter];
@@ -155,6 +152,32 @@
         [_link invalidate];
         _link = nil;
     }
+}
+
+/// На экране — частота экрана (120 на ProMotion), спрятан — почти стоим, чтобы не жечь батарею.
+- (void)setLinkFast:(BOOL)fast {
+    if (!_link || (fast == _linkFast && _linkConfigured)) return;
+    _linkFast = fast;
+    _linkConfigured = YES;
+    NSInteger maxFps = MAX(60, self.window.screen.maximumFramesPerSecond ?: UIScreen.mainScreen.maximumFramesPerSecond);
+    if ([_link respondsToSelector:@selector(setPreferredFrameRateRange:)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+        CAFrameRateRange r = fast ? CAFrameRateRangeMake(MIN(80, maxFps), maxFps, maxFps) : CAFrameRateRangeMake(4, 10, 10);
+        _link.preferredFrameRateRange = r;
+#pragma clang diagnostic pop
+    } else {
+        _link.preferredFramesPerSecond = fast ? maxFps : 10;
+    }
+}
+
+/// Реально ли видно на экране (не спрятан Spotify, не за пределами окна).
+- (BOOL)isOnScreen {
+    UIWindow *w = self.window;
+    if (!w) return NO;
+    for (UIView *v = self; v; v = v.superview) if (v.hidden || v.alpha < 0.01) return NO;
+    CGRect r = [self convertRect:self.bounds toView:nil];
+    return r.size.width > 1 && r.size.height > 1 && CGRectIntersectsRect(r, w.bounds);
 }
 
 /// CADisplayLink держит target сильной ссылкой — разрываем цикл.
@@ -456,6 +479,8 @@
 }
 
 - (void)tick {
+    // спрятан — проверяем каждый кадр (чтобы сразу разогнаться), на экране — раз в 20 кадров
+    if (!_linkFast || ++_visibilityTicks % 20 == 0) [self setLinkFast:[self isOnScreen]];
     if (!_lyrics || _lyrics.type == SLLyricsTypeStatic || !_lineViews.count) return;
     double t = [[SLNowPlaying shared] currentTime];
     NSArray<SLLine *> *lines = _lyrics.lines;

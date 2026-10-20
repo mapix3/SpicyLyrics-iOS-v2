@@ -48,6 +48,12 @@ jobs:
         run: |
           pip3 install --break-system-packages https://github.com/asdfzxcvbn/pyzule-rw/archive/main.zip
           curl -L -o Spotify.ipa "${{ github.event.inputs.ipa_url }}"
+          # 120 Гц на ProMotion: без этого ключа iOS режет анимации приложения до 60
+          mkdir ipa && unzip -q Spotify.ipa -d ipa
+          PLIST=$(ls -d ipa/Payload/*.app)/Info.plist
+          /usr/libexec/PlistBuddy -c "Delete :CADisableMinimumFrameDurationOnPhone" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CADisableMinimumFrameDurationOnPhone bool true" "$PLIST"
+          rm Spotify.ipa && (cd ipa && zip -qry ../Spotify.ipa Payload)
           cyan -i Spotify.ipa -o packages/Spotify-SpicyLyrics.ipa -u -w -f packages/*iphoneos-arm.deb
 
       - uses: actions/upload-artifact@v4

@@ -7,6 +7,7 @@
 #import "Sources/SLPlayerLyrics.h"
 #import "Sources/SLLyricsNetwork.h"
 #import "Sources/SLDebug.h"
+#import "Sources/SLProMotion.h"
 #import "Sources/SLLyricsProvider.h"
 
 static BOOL SLAddingHandler;
@@ -129,6 +130,7 @@ static void SLInstallSpotifyHooks(void) {
 
 %ctor {
     @autoreleasepool {
+        SLEnableProMotion();   // до того, как QuartzCore прочитает Info.plist
         SLInstallNetworkSniffer();
         // конфиг текста Spotify читает на старте — этот хук нужен до него
         SLLog(@"launch: Spotify %@ (%@), safeMode=%d",
