@@ -8,7 +8,6 @@
 #import "SLDebug.h"
 #import "SLNowPlaying.h"
 #import "SLSettingsViewController.h"
-#import <objc/message.h>
 
 typedef NS_ENUM(NSInteger, SLHostKind) {
     SLHostKindStrip = 0,   // строчка текста прямо на плеере (lyrics preview)
@@ -28,6 +27,8 @@ static CGFloat SLHostCornerRadius(UIView *host) {
 /// Наш текст поверх Spotify-шной вьюхи. Оригинальное содержимое прячется (alpha = 0),
 /// сама вьюха Spotify остаётся — её размер, анимации появления и место в плеере не трогаем.
 @interface SLPlayerLyricsOverlay : UIView <UIGestureRecognizerDelegate>
+/// Самостоятельное окно (не поверх вьюхи Spotify): ничего вокруг не прячет.
+@property (nonatomic) BOOL standalone;
 - (instancetype)initWithKind:(SLHostKind)kind;
 - (void)conceal;
 @end
@@ -109,16 +110,21 @@ static CGFloat SLHostCornerRadius(UIView *host) {
     [super didMoveToWindow];
     [_guard invalidate];
     _guard = nil;
-    if (!self.window) return;
+    if (!self.window || _standalone) return;
     // Spotify может вернуть своему содержимому alpha (смена трека, анимации) — периодически прячем снова
     __weak typeof(self) weakSelf = self;
     _guard = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *t) { [weakSelf conceal]; }];
     [self conceal];
 }
 
+- (void)setStandalone:(BOOL)standalone {
+    _standalone = standalone;
+    if (standalone) self.layer.cornerRadius = 16;
+}
+
 - (void)conceal {
     UIView *host = self.superview;
-    if (!host) return;
+    if (!host || _standalone) return;
     for (UIView *v in host.subviews) {
         if (v == self || v.alpha == 0) continue;
         v.alpha = 0;
@@ -224,89 +230,133 @@ static void SLHookHost(NSString *tag, NSArray<NSString *> *names, SLHostKind kin
     }
 }
 
-/// Spotify запрашивает текст только у треков, у которых он сам знает про текст (has_lyrics).
-/// В его remote config есть флаг ios-feature-lyrics.enable_has_lyrics_check_bypass — включаем его,
-/// тогда запрос уходит для любого трека, а 404 подменяет SLLyricsNetwork.
-void SLInstallLyricsConfigHook(void) {
-    static BOOL done;
-    if (done) return;
-    Class cls = SLFindClass(@[@"_TtC24Lyrics_ConfigurationImpl37SPTLyrics_ConfigurationImplProperties",
-                              @"Lyrics_ConfigurationImpl.SPTLyrics_ConfigurationImplProperties"]);
-    Ivar flag = cls ? class_getInstanceVariable(cls, "enableHasLyricsCheckBypass") : NULL;
-    if (!flag) return;
-    ptrdiff_t offset = ivar_getOffset(flag);
-    SEL sel = NSSelectorFromString(@"initWithConfigurationProvider:");
-    done = SLHook(cls, sel, ^id(IMP orig) {
-        return ^id(id me, id provider) {
-            id obj = ((id (*)(id, SEL, id))orig)(me, sel, provider);
-            if (obj) {
-                uint8_t *p = (uint8_t *)(__bridge void *)obj + offset;
-                SLLog(@"lyrics config: enableHasLyricsCheckBypass was %d", *p);
-                if (*p <= 1) *p = 1;   // Bool — пишем только если там действительно 0/1
-            }
-            return obj;
-        };
-    });
+#pragma mark - Виртуальное окно текста в плеере
+
+// Карточки под плеером — ячейки Element_List.CollectionViewCell в коллекции NPV (самоподстраивающиеся по высоте).
+// Первая карточка (ip 0.0) становится выше на высоту нашего окна: окно сверху, её содержимое — ниже.
+// Если первая карточка — текст самого Spotify, она целиком становится нашим окном; если он дальше — схлопывается.
+// Порядок и набор карточек присылает сервер, так что окно есть у любого трека, даже если у Spotify нет текста.
+
+typedef NS_ENUM(NSInteger, SLCellMode) {
+    SLCellModeNone = 0,
+    SLCellModePrepend = 1,    // наше окно + исходная карточка ниже
+    SLCellModeReplace = 2,    // карточка текста Spotify → наше окно
+    SLCellModeCollapse = 3,   // лишняя карточка текста Spotify → высота 0
+};
+
+static const CGFloat SLCardHeight = 340;
+static const CGFloat SLCardGap = 24;
+static NSString *const SLNPVCollectionID = @"scrolling_npv_collection_view_accessibility_identifier";
+static const void *SLModeKey = &SLModeKey;
+static const void *SLCardKey = &SLCardKey;
+static const void *SLDimmedKey = &SLDimmedKey;
+
+/// Ячейка из коллекции под плеером: по самой коллекции или по типу содержимого (NowPlaying_ScrollAPI).
+static BOOL SLIsNPVCell(UICollectionViewCell *cell) {
+    UIView *cv = cell.superview;
+    if ([cv isKindOfClass:[UICollectionView class]]) return [cv.accessibilityIdentifier isEqualToString:SLNPVCollectionID];
+    UIView *content = cell.contentView.subviews.firstObject;
+    return content && [NSStringFromClass([content class]) containsString:@"NowPlaying_ScrollAPI"];
 }
 
-/// Только обычные треки (не реклама, не подкасты, не локальные файлы).
-static BOOL SLIsMusicTrack(id track) {
-    static SEL uriSel;
-    if (!uriSel) uriSel = NSSelectorFromString(@"URI");
-    if (![track respondsToSelector:uriSel]) return NO;
-    id uri = ((id (*)(id, SEL))objc_msgSend)(track, uriSel);
-    NSString *s = [uri isKindOfClass:[NSURL class]] ? [uri absoluteString] : ([uri isKindOfClass:[NSString class]] ? uri : nil);
-    return [s hasPrefix:@"spotify:track:"];
-}
-
-static void SLNoteForced(id track, NSString *via) {
-    static NSMutableSet *seen;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ seen = [NSMutableSet set]; });
-    NSString *key = [NSString stringWithFormat:@"%p-%@", track, via];
-    @synchronized (seen) {
-        if ([seen containsObject:key] || seen.count > 200) return;
-        [seen addObject:key];
+static BOOL SLContainsLyricsCard(UIView *root) {
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
+    for (NSUInteger i = 0; i < queue.count && i < 60; i++) {
+        UIView *v = queue[i];
+        if ([v.accessibilityIdentifier isEqualToString:@"lyrics-card-view"] ||
+            [NSStringFromClass([v class]) containsString:@"Lyrics_CardElementImpl"]) return YES;
+        [queue addObjectsFromArray:v.subviews];
     }
-    SLLog(@"has_lyrics forced via %@", via);
+    return NO;
 }
 
-void SLInstallHasLyricsHooks(void) {
+static void SLApplyCellMode(UICollectionViewCell *cell) {
+    SLCellMode mode = [objc_getAssociatedObject(cell, SLModeKey) integerValue];
+    SLPlayerLyricsOverlay *card = objc_getAssociatedObject(cell, SLCardKey);
+    UIView *content = cell.contentView;
+    CGRect b = cell.bounds;
+
+    if (mode == SLCellModePrepend || mode == SLCellModeReplace) {
+        if (!card) {
+            card = [[SLPlayerLyricsOverlay alloc] initWithKind:SLHostKindCard];
+            card.standalone = YES;
+            objc_setAssociatedObject(cell, SLCardKey, card, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        if (card.superview != cell) [cell addSubview:card];
+        else if (cell.subviews.lastObject != card) [cell bringSubviewToFront:card];
+        CGRect f = CGRectMake(0, 0, b.size.width, MIN(SLCardHeight, b.size.height));
+        if (!CGRectEqualToRect(card.frame, f)) card.frame = f;
+    } else if (card.superview) {
+        [card removeFromSuperview];   // и его таймеры/отрисовка останавливаются
+    }
+
+    if (mode == SLCellModePrepend) {
+        CGFloat d = SLCardHeight + SLCardGap;
+        CGRect f = CGRectMake(0, d, b.size.width, MAX(0, b.size.height - d));
+        if (!CGRectEqualToRect(content.frame, f)) content.frame = f;
+    }
+    BOOL dim = mode == SLCellModeReplace || mode == SLCellModeCollapse;
+    BOOL dimmed = [objc_getAssociatedObject(cell, SLDimmedKey) boolValue];
+    if (dim != dimmed) {
+        content.alpha = dim ? 0 : 1;
+        content.userInteractionEnabled = !dim;
+        objc_setAssociatedObject(cell, SLDimmedKey, @(dim), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    cell.clipsToBounds = mode != SLCellModeNone;
+}
+
+void SLInstallVirtualCard(void) {
     static BOOL done;
     if (done) return;
+    Class cls = SLFindClass(@[@"_TtC12Element_List18CollectionViewCell", @"Element_List.CollectionViewCell"]);
+    if (!cls) { SLLog(@"virtual card: Element_List.CollectionViewCell missing"); return; }
     done = YES;
-    Class cls = NSClassFromString(@"SPTPlayerTrack");
-    if (!cls) { SLLog(@"has_lyrics hooks: SPTPlayerTrack missing"); return; }
-    SEL hasLyrics = NSSelectorFromString(@"spt_hasLyrics");
-    SEL metaKey = NSSelectorFromString(@"metadataValueForKey:");
-    SEL meta = NSSelectorFromString(@"metadata");
-    BOOL a = SLHook(cls, hasLyrics, ^id(IMP orig) {
-        return ^BOOL(id track) {
-            if (((BOOL (*)(id, SEL))orig)(track, hasLyrics)) return YES;
-            if (!SLIsMusicTrack(track)) return NO;
-            SLNoteForced(track, @"spt_hasLyrics");
-            return YES;
+
+    SEL fit = @selector(preferredLayoutAttributesFittingAttributes:);
+    BOOL a = SLHook(cls, fit, ^id(IMP orig) {
+        return ^UICollectionViewLayoutAttributes *(UICollectionViewCell *cell, UICollectionViewLayoutAttributes *attrs) {
+            UICollectionViewLayoutAttributes *res = ((id (*)(id, SEL, id))orig)(cell, fit, attrs);
+            SLCellMode mode = SLCellModeNone;
+            if (SLIsNPVCell(cell) && res) {
+                NSIndexPath *ip = attrs.indexPath;
+                BOOL first = ip.section == 0 && ip.item == 0;
+                BOOL lyrics = SLContainsLyricsCard(cell.contentView);
+                mode = first ? (lyrics ? SLCellModeReplace : SLCellModePrepend) : (lyrics ? SLCellModeCollapse : SLCellModeNone);
+                CGSize size = res.size;
+                if (mode == SLCellModePrepend) size.height += SLCardHeight + SLCardGap;
+                else if (mode == SLCellModeReplace) size.height = SLCardHeight;
+                else if (mode == SLCellModeCollapse) size.height = 0;
+                if (mode != SLCellModeNone) {
+                    res = [res copy];
+                    res.size = size;
+                }
+            }
+            if ([objc_getAssociatedObject(cell, SLModeKey) integerValue] != mode) {
+                objc_setAssociatedObject(cell, SLModeKey, @(mode), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                [cell setNeedsLayout];
+            }
+            return res;
         };
     });
-    BOOL b = SLHook(cls, metaKey, ^id(IMP orig) {
-        return ^id(id track, id key) {
-            id v = ((id (*)(id, SEL, id))orig)(track, metaKey, key);
-            if (![key isKindOfClass:[NSString class]] || ![key isEqualToString:@"has_lyrics"]) return v;
-            if ([v isEqual:@"true"] || !SLIsMusicTrack(track)) return v;
-            SLNoteForced(track, @"metadataValueForKey");
-            return @"true";
+
+    SEL layout = @selector(layoutSubviews);
+    BOOL b = SLHook(cls, layout, ^id(IMP orig) {
+        return ^(UICollectionViewCell *cell) {
+            ((void (*)(id, SEL))orig)(cell, layout);
+            if (objc_getAssociatedObject(cell, SLModeKey) || objc_getAssociatedObject(cell, SLCardKey)) SLApplyCellMode(cell);
         };
     });
-    BOOL c = SLHook(cls, meta, ^id(IMP orig) {
-        return ^NSDictionary *(id track) {
-            NSDictionary *m = ((NSDictionary *(*)(id, SEL))orig)(track, meta);
-            if (![m isKindOfClass:[NSDictionary class]] || [m[@"has_lyrics"] isEqual:@"true"] || !SLIsMusicTrack(track)) return m;
-            NSMutableDictionary *mm = [m mutableCopy];
-            mm[@"has_lyrics"] = @"true";
-            return [mm copy];
+
+    SEL reuse = @selector(prepareForReuse);
+    SLHook(cls, reuse, ^id(IMP orig) {
+        return ^(UICollectionViewCell *cell) {
+            ((void (*)(id, SEL))orig)(cell, reuse);
+            if (!objc_getAssociatedObject(cell, SLModeKey)) return;
+            objc_setAssociatedObject(cell, SLModeKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            SLApplyCellMode(cell);
         };
     });
-    SLLog(@"has_lyrics hooks: spt_hasLyrics=%d metadataValueForKey=%d metadata=%d", a, b, c);
+    SLLog(@"virtual card: fit=%d layout=%d", a, b);
 }
 
 void SLInstallDebugHooks(void) {
@@ -341,6 +391,4 @@ void SLInstallPlayerHooks(void) {
                                   @"NowPlaying_ContentLayersImpl.LegacyLyricsContainerView"], SLHostKindStrip);
     SLHookHost(@"strip.element", @[@"_TtC25Lyrics_NPVElementsKitImpl26LyricsElementContainerView",
                                    @"Lyrics_NPVElementsKitImpl.LyricsElementContainerView"], SLHostKindStrip);
-    SLHookHost(@"card", @[@"_TtC22Lyrics_CardElementImpl8CardView",
-                          @"Lyrics_CardElementImpl.CardView"], SLHostKindCard);
 }

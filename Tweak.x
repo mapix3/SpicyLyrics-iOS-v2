@@ -102,15 +102,12 @@ static void SLPrefetch(void) {
 static NSString *const SLLaunchGuardKey = @"SpicyLyricsiOS.launchCrashes";
 
 /// Spotify падал на старте 3 раза подряд — на этот запуск не трогаем его классы, чтобы он хотя бы открылся.
-static NSInteger SLPreviousCrashes;
-
 static BOOL SLSafeMode(void) {
     static BOOL safeMode;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
         NSInteger crashes = [d integerForKey:SLLaunchGuardKey];
-        SLPreviousCrashes = crashes;
         safeMode = crashes >= 3;
         [d setInteger:safeMode ? 0 : crashes + 1 forKey:SLLaunchGuardKey];
         [d synchronize];
@@ -124,13 +121,10 @@ static BOOL SLSafeMode(void) {
 /// Остальные хуки на классы Spotify ставим уже после старта процесса.
 static void SLInstallSpotifyHooks(void) {
     if (SLSafeMode()) return;
-    SLInstallLyricsConfigHook();
     SLInstallPlayerHooks();
+    SLInstallVirtualCard();
     SLInstallLyricsNetworkHooks();
     SLInstallDebugHooks();
-    // has_lyrics — самая рискованная часть: если прошлый запуск упал на старте, в этот раз её не ставим
-    if (SLPreviousCrashes == 0) SLInstallHasLyricsHooks();
-    else SLLog(@"has_lyrics hooks skipped: previous launch crashed (%ld)", (long)SLPreviousCrashes);
 }
 
 %ctor {
@@ -140,7 +134,6 @@ static void SLInstallSpotifyHooks(void) {
         SLLog(@"launch: Spotify %@ (%@), safeMode=%d",
               [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
               [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"], SLSafeMode());
-        if (!SLSafeMode()) SLInstallLyricsConfigHook();
         dispatch_async(dispatch_get_main_queue(), ^{ SLInstallSpotifyHooks(); });
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
         [nc addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue]

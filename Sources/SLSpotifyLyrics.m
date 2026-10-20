@@ -49,35 +49,6 @@ static NSString *SLPBString(SLPB s) {
     return [[NSString alloc] initWithBytes:s.p length:(NSUInteger)(s.end - s.p) encoding:NSUTF8StringEncoding] ?: @"";
 }
 
-#pragma mark - Protobuf writer
-
-static void SLPutVarint(NSMutableData *d, uint64_t v) {
-    uint8_t buf[10];
-    int n = 0;
-    do {
-        uint8_t b = v & 0x7F;
-        v >>= 7;
-        if (v) b |= 0x80;
-        buf[n++] = b;
-    } while (v);
-    [d appendBytes:buf length:n];
-}
-
-static void SLPutVarintField(NSMutableData *d, uint32_t field, uint64_t v) {
-    SLPutVarint(d, (field << 3) | 0);
-    SLPutVarint(d, v);
-}
-
-static void SLPutBytesField(NSMutableData *d, uint32_t field, NSData *bytes) {
-    SLPutVarint(d, (field << 3) | 2);
-    SLPutVarint(d, bytes.length);
-    [d appendData:bytes];
-}
-
-static void SLPutStringField(NSMutableData *d, uint32_t field, NSString *s) {
-    SLPutBytesField(d, field, [s ?: @"" dataUsingEncoding:NSUTF8StringEncoding]);
-}
-
 #pragma mark - Spotify → SLLyrics
 
 static BOOL SLIsFiller(NSString *t) {
@@ -167,50 +138,4 @@ SLLyrics *SLLyricsFromSpotifyResponse(NSData *data) {
     } @catch (NSException *e) {
         return nil;
     }
-}
-
-#pragma mark - SLLyrics → Spotify
-
-NSData *SLSpotifyResponseFromLyrics(SLLyrics *lyrics) {
-    // Повторяет структуру настоящего ответа Spotify:
-    //   1 syncType, 2 строки, 3 провайдер, 4 id у провайдера, 5 имя провайдера, 10 язык, 17 превью (первые 5 строк)
-    BOOL synced = lyrics && lyrics.type != SLLyricsTypeStatic;
-    NSMutableArray<NSData *> *lines = [NSMutableArray array];
-    NSMutableString *all = [NSMutableString string];
-    for (SLLine *line in lyrics.lines) {
-        if (line.isInterlude || !line.text.length) continue;
-        NSMutableData *l = [NSMutableData data];
-        SLPutVarintField(l, 1, synced ? (uint64_t)MAX(0, (int64_t)llround(line.start * 1000)) : 0);
-        SLPutStringField(l, 2, line.text);
-        [lines addObject:l];
-        if (all.length < 2000) [all appendFormat:@"%@\n", line.text];
-    }
-    if (!lines.count) {
-        NSMutableData *l = [NSMutableData data];
-        SLPutVarintField(l, 1, 0);
-        SLPutStringField(l, 2, @"♪");
-        [lines addObject:l];
-    }
-    NSString *lang = all.length ? [NSLinguisticTagger dominantLanguageForString:all] : nil;
-    if (!lang.length || [lang isEqualToString:@"und"]) lang = @"en";
-
-    NSMutableData *data = [NSMutableData data];
-    SLPutVarintField(data, 1, synced ? 1 : 0);
-    for (NSData *l in lines) SLPutBytesField(data, 2, l);
-    SLPutStringField(data, 3, @"SpicyLyrics");
-    SLPutStringField(data, 4, @"0");
-    SLPutStringField(data, 5, @"Spicy Lyrics");
-    SLPutStringField(data, 10, lang);
-    for (NSUInteger i = 0; i < MIN((NSUInteger)5, lines.count); i++) SLPutBytesField(data, 17, lines[i]);
-
-    NSMutableData *colors = [NSMutableData data];
-    // int32 — отрицательные значения кодируются 64-битным varint, как у самого Spotify
-    SLPutVarintField(colors, 1, (uint64_t)(int64_t)(int32_t)0xFF3A3A3Au);
-    SLPutVarintField(colors, 2, (uint64_t)(int64_t)(int32_t)0xFF000000u);
-    SLPutVarintField(colors, 3, (uint64_t)(int64_t)(int32_t)0xFFFFFFFFu);
-
-    NSMutableData *out = [NSMutableData data];
-    SLPutBytesField(out, 1, data);
-    SLPutBytesField(out, 2, colors);
-    return out;
 }
