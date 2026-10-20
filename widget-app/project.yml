@@ -1,6 +1,6 @@
-name: LyricsWidget
+name: SpicyLyricsWidget
 options:
-  bundleIdPrefix: com.mapix30
+  bundleIdPrefix: com.spotify.client
   deploymentTarget:
     iOS: "17.0"
 settings:
@@ -13,46 +13,24 @@ settings:
     TARGETED_DEVICE_FAMILY: "1"
     ENABLE_BITCODE: "NO"
 targets:
-  LyricsWidget:
-    type: application
-    platform: iOS
-    sources: [App, Shared]
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mapix30.lyricswidget
-        INFOPLIST_FILE: App/Info.plist
-        CODE_SIGN_ENTITLEMENTS: App/App.entitlements
-    info:
-      path: App/Info.plist
-      properties:
-        CFBundleDisplayName: Lyrics Widget
-        UILaunchScreen: {}
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        CFBundleURLTypes:
-          - CFBundleURLName: com.mapix30.lyricswidget.auth
-            CFBundleURLSchemes: [spicylyricswidget]
-    entitlements:
-      path: App/App.entitlements
-      properties:
-        com.apple.security.application-groups: [group.com.mapix30.lyricswidget]
-    dependencies:
-      - target: LyricsWidgetExtension
-  LyricsWidgetExtension:
+  SpicyLyricsWidget:
     type: app-extension
     platform: iOS
-    sources: [Widget, Shared]
+    sources: [Widget]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mapix30.lyricswidget.widget
+        PRODUCT_BUNDLE_IDENTIFIER: com.spotify.client.spicylyricswidget
+        PRODUCT_NAME: SpicyLyricsWidget
         INFOPLIST_FILE: Widget/Info.plist
         CODE_SIGN_ENTITLEMENTS: Widget/Widget.entitlements
+        APPLICATION_EXTENSION_API_ONLY: "YES"
     info:
       path: Widget/Info.plist
       properties:
-        CFBundleDisplayName: Lyrics
+        CFBundleDisplayName: Spicy Lyrics
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
       path: Widget/Widget.entitlements
       properties:
-        com.apple.security.application-groups: [group.com.mapix30.lyricswidget]
+        com.apple.security.application-groups: [group.com.spotify.client.widget]

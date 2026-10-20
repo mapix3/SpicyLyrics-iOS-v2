@@ -7,6 +7,7 @@
 #import "Sources/SLLyricsNetwork.h"
 #import "Sources/SLDebug.h"
 #import "Sources/SLProMotion.h"
+#import "Sources/SLWidgetBridge.h"
 #import "Sources/SLLyricsProvider.h"
 
 static BOOL SLAddingHandler;
@@ -113,6 +114,7 @@ static void SLInstallSpotifyHooks(void) {
     SLInstallVirtualCard();
     SLInstallLyricsNetworkHooks();
     SLInstallDebugHooks();
+    SLStartWidgetBridge();
 }
 
 %ctor {

@@ -10,7 +10,7 @@ static UIColor *SLTune(UIColor *c, CGFloat minB, CGFloat maxB, CGFloat satBoost)
     return [UIColor colorWithHue:h saturation:s brightness:b alpha:1];
 }
 
-static NSArray<UIColor *> *SLPalette(UIImage *image) {
+NSArray<UIColor *> *SLArtworkPalette(UIImage *image) {
     const int S = 28;
     CGImageRef cg = image.CGImage;
     if (!cg) return nil;
@@ -184,7 +184,7 @@ static NSArray<UIColor *> *SLPalette(UIImage *image) {
     if (image == _source) return;
     _source = image;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSArray<UIColor *> *palette = image ? SLPalette(image) : nil;
+        NSArray<UIColor *> *palette = image ? SLArtworkPalette(image) : nil;
         dispatch_async(dispatch_get_main_queue(), ^{
             if (image != self->_source) return;
             [self applyPalette:palette];
