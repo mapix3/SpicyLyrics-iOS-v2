@@ -425,10 +425,10 @@ static BOOL SLHasVisibleText(UIView *root) {
         if (v.bounds.size.width > 0) [queue addObjectsFromArray:v.subviews];
     }
 
-    CGFloat top = CGRectGetMaxY(art) + 10;
+    CGFloat top = CGRectGetMaxY(art);   // отступ от обложки задаёт сама строчка (contentInsets.top)
     CGFloat bottom = MIN(info, floating) - 8;
-    CGFloat h = MIN(bottom - top, 96);
-    BOOL show = !CGRectIsNull(art) && !spotifyStrip && info < CGFLOAT_MAX && h >= 34;
+    CGFloat h = MIN(bottom - top, 110);
+    BOOL show = !CGRectIsNull(art) && !spotifyStrip && info < CGFLOAT_MAX && h >= 48;
     if (show) {
         CGRect f = CGRectMake(CGRectGetMinX(art), top, art.size.width, h);
         if (!CGRectEqualToRect(self.strip.frame, f)) self.strip.frame = f;

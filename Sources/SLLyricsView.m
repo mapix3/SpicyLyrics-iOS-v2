@@ -46,7 +46,8 @@
         _interactive = mode == SLLyricsViewModeFull;
         _showsAttribution = YES;
         _contentInsets = mode == SLLyricsViewModeFull ? UIEdgeInsetsMake(0, 24, 0, 24)
-                       : mode == SLLyricsViewModeCompact ? UIEdgeInsetsMake(0, 16, 0, 16) : UIEdgeInsetsZero;
+                       : mode == SLLyricsViewModeCompact ? UIEdgeInsetsMake(0, 16, 0, 16)
+                       : UIEdgeInsetsMake(14, 0, 0, 0);   // строчка на плеере — отступ от обложки
         self.clipsToBounds = YES;
         self.backgroundColor = UIColor.clearColor;
         self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
