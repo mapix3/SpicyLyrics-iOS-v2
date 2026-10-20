@@ -119,7 +119,7 @@ static CGFloat SLHostCornerRadius(UIView *host) {
 
 - (void)setStandalone:(BOOL)standalone {
     _standalone = standalone;
-    if (standalone) self.layer.cornerRadius = 16;
+    if (standalone && _kind == SLHostKindCard) self.layer.cornerRadius = 16;
 }
 
 - (void)conceal {
