@@ -117,6 +117,7 @@
         [nc addObserver:self selector:@selector(settingsChanged:) name:SLSettingsDidChangeNotification object:nil];
         [nc addObserver:self selector:@selector(playbackChanged) name:SLPlaybackDidChangeNotification object:nil];
         [nc addObserver:self selector:@selector(forceReload) name:@"SLForceReloadNotification" object:nil];
+        [nc addObserver:self selector:@selector(spotifyLyricsArrived) name:SLSpotifyLyricsDidLoadNotification object:nil];
         UILongPressGestureRecognizer *lp = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(longPress:)];
         lp.minimumPressDuration = 0.6;
         [self addGestureRecognizer:lp];
@@ -236,6 +237,11 @@
     if (self.window) [self loadLyrics];
 }
 
+/// Spotify сам загрузил свой текст — если у нас пусто, пробуем ещё раз (возьмём его как запасной).
+- (void)spotifyLyricsArrived {
+    if (!_lyrics && self.window && [SLNowPlaying shared].title.length) [self forceReload];
+}
+
 - (void)longPress:(UILongPressGestureRecognizer *)g {
     if (g.state != UIGestureRecognizerStateBegan) return;
     UIResponder *r = self;
@@ -278,6 +284,15 @@
     if (!_lyrics || !_showsAttribution) { _attribution.hidden = YES; [self setNeedsLayout]; return; }
     UIFont *font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
     NSDictionary *plain = @{ NSFontAttributeName: font, NSForegroundColorAttributeName: [UIColor colorWithWhite:1 alpha:0.55] };
+    if (_lyrics.fromSpotify) {
+        // у Spicy Lyrics текста нет — показываем текст Spotify и честно об этом пишем
+        NSString *note = SLLoc(@"spotify_fallback");
+        if (_lyrics.source.length && ![_lyrics.source isEqualToString:@"Spotify"]) note = [note stringByAppendingFormat:@" · %@", _lyrics.source];
+        _attribution.attributedText = [[NSAttributedString alloc] initWithString:note attributes:plain];
+        _attribution.hidden = NO;
+        [self setNeedsLayout];
+        return;
+    }
     NSMutableAttributedString *a = [[NSMutableAttributedString alloc] initWithString:SLLocFormat(@"lyrics_from", _lyrics.source ?: @"—") attributes:plain];
     void (^person)(NSString *, NSString *, NSString *) = ^(NSString *label, NSString *name, NSString *url) {
         if (!name.length) return;

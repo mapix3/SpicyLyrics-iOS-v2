@@ -35,6 +35,8 @@ typedef NS_ENUM(NSInteger, SLLyricsType) {
 @property (nonatomic, copy, nullable) NSString *uploaderURL;
 @property (nonatomic, copy, nullable) NSString *makerName;
 @property (nonatomic, copy, nullable) NSString *makerURL;
+/// Текст взят у самого Spotify (у Spicy Lyrics его нет)
+@property (nonatomic) BOOL fromSpotify;
 
 /// Body ответа Spicy Lyrics Developer API: {Type: Syllable|Line|Static, source, UploadAttribution, ...}
 + (nullable instancetype)lyricsFromSpicyJSON:(NSDictionary *)json duration:(double)duration;

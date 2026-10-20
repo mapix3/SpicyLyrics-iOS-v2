@@ -5,7 +5,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 typedef void (^SLLyricsCompletion)(SLLyrics *_Nullable lyrics, NSString *_Nullable error);
 
-extern NSNotificationName const SLLyricsDidLoadNotification;   // object: trackKey
+extern NSNotificationName const SLLyricsDidLoadNotification;          // object: trackKey
+extern NSNotificationName const SLSpotifyLyricsDidLoadNotification;   // object: track id
 
 @interface SLLyricsProvider : NSObject
 + (instancetype)shared;
@@ -25,6 +26,12 @@ extern NSNotificationName const SLLyricsDidLoadNotification;   // object: trackK
               trackURI:(nullable NSString *)uri
               trackKey:(NSString *)key
             completion:(SLLyricsCompletion)completion;
+
+/// Только Spicy Lyrics по id трека Spotify (с кэшем). completion — на главном потоке.
+- (void)spicyLyricsForTrackId:(nullable NSString *)trackId completion:(SLLyricsCompletion)completion;
+
+/// Ответ color-lyrics, который Spotify получил сам, — запоминаем как запасной текст.
+- (void)storeSpotifyResponse:(NSData *)data trackId:(NSString *)trackId;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -5,6 +5,7 @@
 #import "SLLyricsView.h"
 #import "SLLyricsViewController.h"
 #import "SLLocalization.h"
+#import "SLHook.h"
 
 typedef NS_ENUM(NSInteger, SLHostKind) {
     SLHostKindStrip = 0,   // строчка текста прямо на плеере (lyrics preview)
@@ -165,16 +166,6 @@ static Class SLFindClass(NSArray<NSString *> *names) {
         if (c) return c;
     }
     return nil;
-}
-
-/// makeBlock получает оригинальную реализацию и возвращает блок-замену.
-static BOOL SLHook(Class cls, SEL sel, id (^makeBlock)(IMP orig)) {
-    Method m = class_getInstanceMethod(cls, sel);
-    if (!m) return NO;
-    IMP orig = method_getImplementation(m);
-    IMP repl = imp_implementationWithBlock(makeBlock(orig));
-    if (!class_addMethod(cls, sel, repl, method_getTypeEncoding(m))) method_setImplementation(m, repl);
-    return YES;
 }
 
 static void SLAttach(UIView *host, SLHostKind kind) {

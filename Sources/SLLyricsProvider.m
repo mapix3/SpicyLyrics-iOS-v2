@@ -2,8 +2,10 @@
 #import "SLLocalization.h"
 #import "SLSettings.h"
 #import "SLSecrets.h"
+#import "SLSpotifyLyrics.h"
 
 NSNotificationName const SLLyricsDidLoadNotification = @"SLLyricsDidLoadNotification";
+NSNotificationName const SLSpotifyLyricsDidLoadNotification = @"SLSpotifyLyricsDidLoadNotification";
 
 static NSString *const SLOwnHeader = @"X-SpicyLyricsiOS";
 static NSString *const SLUserAgent = @"SpicyLyricsiOS/2.0 (https://github.com/mapix3/SpicyLyrics-iOS-v2)";
@@ -15,7 +17,12 @@ static NSString *const SLSpicyAPI = @"https://api.spicylyrics.org/v1/lyrics/";  
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *idForKey;   // trackKey -> track id
 @property (nonatomic, strong) NSMutableArray<NSString *> *sniffedIds;                  // последние id из запросов Spotify
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableArray<SLLyricsCompletion> *> *pending;
+@property (nonatomic, strong) NSCache<NSString *, id> *spicyById;     // id -> SLLyrics | NSNull (точно нет)
+@property (nonatomic, strong) NSCache<NSString *, id> *spotifyById;   // id -> SLLyrics | NSNull
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableArray<SLLyricsCompletion> *> *spicyPending;
 @property (atomic, copy) NSString *spotifyToken;
+@property (atomic, copy) NSString *clientToken;
+@property (atomic, copy) NSString *spotifyUserAgent;
 @property (atomic) NSTimeInterval tokenStamp;
 @end
 
@@ -78,12 +85,19 @@ static NSString *SLFirstArtist(NSString *a) {
         _idForKey = [NSMutableDictionary dictionary];
         _sniffedIds = [NSMutableArray array];
         _pending = [NSMutableDictionary dictionary];
+        _spicyById = [NSCache new];
+        _spicyById.countLimit = 200;
+        _spotifyById = [NSCache new];
+        _spotifyById.countLimit = 200;
+        _spicyPending = [NSMutableDictionary dictionary];
     }
     return self;
 }
 
 - (void)clearCache {
     [self.cache removeAllObjects];
+    [self.spicyById removeAllObjects];
+    [self.spotifyById removeAllObjects];
 }
 
 - (SLLyrics *)cachedLyricsForKey:(NSString *)key {
@@ -103,6 +117,10 @@ static NSString *SLFirstArtist(NSString *a) {
         self.spotifyToken = [auth substringFromIndex:7];
         self.tokenStamp = [NSDate date].timeIntervalSince1970;
     }
+    NSString *ct = h[@"client-token"] ?: h[@"Client-Token"];
+    if (ct.length) self.clientToken = ct;
+    NSString *ua = h[@"User-Agent"] ?: h[@"user-agent"];
+    if ([url.host hasPrefix:@"spclient"] && ua.length) self.spotifyUserAgent = ua;
 
     // Spotify сам запрашивает текст текущего трека: .../color-lyrics/v2/track/<id>
     static NSRegularExpression *re;
@@ -240,15 +258,40 @@ static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, d
         });
     };
 
-    // единственный источник — Spicy Lyrics Developer API
+    // Spicy Lyrics, а если там нет — текст самого Spotify
     [self resolveTrackIdForTitle:title artist:artist duration:duration uri:uri key:key completion:^(NSString *tid) {
-        [self spicyTrackId:tid duration:duration completion:^(SLLyrics *ly, NSString *err) {
-            finish(ly, ly ? nil : (err ?: SLLoc(@"err_spicy_none")));
+        [self spicyLyricsForTrackId:tid completion:^(SLLyrics *ly, NSString *err) {
+            if (ly) { finish(ly, nil); return; }
+            [self spotifyLyricsForTrackId:tid completion:^(SLLyrics *sp) {
+                finish(sp, sp ? nil : (err ?: SLLoc(@"err_spicy_none")));
+            }];
         }];
     }];
 }
 
 #pragma mark - Spicy Lyrics
+
+- (void)spicyLyricsForTrackId:(NSString *)tid completion:(SLLyricsCompletion)completion {
+    void (^done)(SLLyrics *, NSString *) = ^(SLLyrics *ly, NSString *err) {
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(ly, err); });
+    };
+    if (!tid.length) { done(nil, SLLoc(@"err_no_track")); return; }
+    id hit = [self.spicyById objectForKey:tid];
+    if (hit) { done(hit == [NSNull null] ? nil : hit, hit == [NSNull null] ? SLLoc(@"err_spicy_none") : nil); return; }
+
+    @synchronized (self) {
+        NSMutableArray *waiting = self.spicyPending[tid];
+        if (waiting) { [waiting addObject:[completion copy]]; return; }
+        self.spicyPending[tid] = [NSMutableArray arrayWithObject:[completion copy]];
+    }
+    [self spicyTrackId:tid duration:0 completion:^(SLLyrics *ly, NSString *err) {
+        NSArray *cbs;
+        @synchronized (self) { cbs = self.spicyPending[tid]; [self.spicyPending removeObjectForKey:tid]; }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            for (SLLyricsCompletion cb in cbs) cb(ly, err);
+        });
+    }];
+}
 
 - (void)spicyTrackId:(NSString *)tid duration:(double)duration completion:(void (^)(SLLyrics *, NSString *))completion {
     if (![SL_SPICY_API_KEY length]) { completion(nil, SLLoc(@"err_no_key")); return; }
@@ -260,15 +303,54 @@ static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, d
         NSDictionary *body = [json isKindOfClass:[NSDictionary class]] ? json[@"Body"] : nil;
         if (status == 200 && [body isKindOfClass:[NSDictionary class]]) {
             SLLyrics *ly = [SLLyrics lyricsFromSpicyJSON:body duration:duration];
+            if (ly) [self.spicyById setObject:ly forKey:tid];
             completion(ly, ly ? nil : SLLoc(@"err_format"));
             return;
         }
-        if (status == 404) { completion(nil, SLLoc(@"err_spicy_none")); return; }
+        if (status == 404) { [self.spicyById setObject:[NSNull null] forKey:tid]; completion(nil, SLLoc(@"err_spicy_none")); return; }
         NSString *msg = [body isKindOfClass:[NSDictionary class]] && [body[@"message"] isKindOfClass:[NSString class]] ? body[@"message"] : nil;
         NSString *code = [body isKindOfClass:[NSDictionary class]] && [body[@"error"] isKindOfClass:[NSString class]] ? body[@"error"] : nil;
         if (status <= 0) { completion(nil, SLLoc(@"err_spicy_down")); return; }
         completion(nil, [NSString stringWithFormat:@"Spicy Lyrics: %ld %@%@", (long)status, code ?: @"", msg ? [@" — " stringByAppendingString:msg] : @""]);
     }];
+}
+
+#pragma mark - Spotify (запасной источник)
+
+- (void)storeSpotifyResponse:(NSData *)data trackId:(NSString *)tid {
+    if (!tid.length) return;
+    SLLyrics *ly = SLLyricsFromSpotifyResponse(data);
+    if (!ly) return;
+    BOOL isNew = ![[self.spotifyById objectForKey:tid] isKindOfClass:[SLLyrics class]];
+    [self.spotifyById setObject:ly forKey:tid];
+    if (isNew) dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter] postNotificationName:SLSpotifyLyricsDidLoadNotification object:tid];
+    });
+}
+
+- (void)spotifyLyricsForTrackId:(NSString *)tid completion:(void (^)(SLLyrics *))completion {
+    void (^done)(SLLyrics *) = ^(SLLyrics *ly) { dispatch_async(dispatch_get_main_queue(), ^{ completion(ly); }); };
+    if (!tid.length) { done(nil); return; }
+    id hit = [self.spotifyById objectForKey:tid];
+    if (hit) { done(hit == [NSNull null] ? nil : hit); return; }
+    if (![self hasSpotifyToken]) { done(nil); return; }
+
+    NSString *url = [NSString stringWithFormat:@"https://spclient.wg.spotify.com/color-lyrics/v2/track/%@?format=json&vocalRemoval=false&market=from_token", tid];
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
+    [[self spotifyAuth] enumerateKeysAndObjectsUsingBlock:^(NSString *k, NSString *v, BOOL *stop) { [req setValue:v forHTTPHeaderField:k]; }];
+    [req setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+    [req setValue:@"1" forHTTPHeaderField:SLOwnHeader];
+    if (self.clientToken.length) [req setValue:self.clientToken forHTTPHeaderField:@"client-token"];
+    if (self.spotifyUserAgent.length) [req setValue:self.spotifyUserAgent forHTTPHeaderField:@"User-Agent"];
+    [[self.session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
+        NSInteger status = [(NSHTTPURLResponse *)resp statusCode];
+        SLLyrics *ly = status == 200 ? SLLyricsFromSpotifyResponse(data) : nil;
+        if (ly) [self.spotifyById setObject:ly forKey:tid];
+        else if (status == 404) [self.spotifyById setObject:[NSNull null] forKey:tid];
+        // уже успели перехватить ответ самого Spotify
+        id late = [self.spotifyById objectForKey:tid];
+        done(ly ?: ([late isKindOfClass:[SLLyrics class]] ? late : nil));
+    }] resume];
 }
 
 @end
