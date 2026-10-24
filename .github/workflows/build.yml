@@ -24,12 +24,15 @@ jobs:
           cp -R iPhoneOS16.5.sdk "$HOME/theos/sdks/"
           echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
-      - name: Spicy API key
+      - name: Spicy API
         env:
           SPICY_API_KEY: ${{ secrets.SPICY_API_KEY }}
+          SPICY_PROXY_URL: ${{ vars.SPICY_PROXY_URL }}
         run: |
-          if [ -n "$SPICY_API_KEY" ]; then
-            printf '#define SL_SPICY_API_KEY @"%s"\n' "$SPICY_API_KEY" > Sources/SLSecrets.h
+          if [ -n "$SPICY_PROXY_URL" ]; then
+            printf '#define SL_SPICY_API_KEY @""\n#define SL_SPICY_PROXY @"%s"\n' "$SPICY_PROXY_URL" > Sources/SLSecrets.h
+          elif [ -n "$SPICY_API_KEY" ]; then
+            printf '#define SL_SPICY_API_KEY @"%s"\n#define SL_SPICY_PROXY @""\n' "$SPICY_API_KEY" > Sources/SLSecrets.h
           fi
 
       - name: Build rootless + rootful

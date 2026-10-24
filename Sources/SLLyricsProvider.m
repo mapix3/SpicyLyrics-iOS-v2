@@ -279,11 +279,15 @@ static BOOL SLTrackMatches(NSDictionary *t, NSString *title, NSString *artist, d
 }
 
 - (void)spicyTrackId:(NSString *)tid duration:(double)duration completion:(void (^)(SLLyrics *, NSString *))completion {
-    if (![SL_SPICY_API_KEY length]) { completion(nil, SLLoc(@"err_no_key")); return; }
+    NSString *proxy = SL_SPICY_PROXY;
+    BOOL viaProxy = proxy.length > 0;
+    if (!viaProxy && ![SL_SPICY_API_KEY length]) { completion(nil, SLLoc(@"err_no_key")); return; }
     if (!tid.length) { completion(nil, SLLoc(@"err_no_track")); return; }
 
-    NSDictionary *headers = @{ @"Authorization": [@"Bearer " stringByAppendingString:SL_SPICY_API_KEY] };
-    [self request:[SLSpicyAPI stringByAppendingString:tid] method:@"GET" body:nil headers:headers
+    NSString *base = viaProxy ? [[proxy stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]]
+                                 stringByAppendingString:@"/v1/lyrics/"] : SLSpicyAPI;
+    NSDictionary *headers = viaProxy ? @{} : @{ @"Authorization": [@"Bearer " stringByAppendingString:SL_SPICY_API_KEY] };
+    [self request:[base stringByAppendingString:tid] method:@"GET" body:nil headers:headers
        completion:^(NSDictionary *json, NSInteger status) {
         NSDictionary *body = [json isKindOfClass:[NSDictionary class]] ? json[@"Body"] : nil;
         if (status == 200 && [body isKindOfClass:[NSDictionary class]]) {
