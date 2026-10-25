@@ -364,6 +364,7 @@
 
 - (CGFloat)fontSize {
     CGFloat base = _mode == SLLyricsViewModeFull ? 30 : _mode == SLLyricsViewModeCompact ? 22 : ([self isTall] ? 26 : 20);
+    if (_mode == SLLyricsViewModeStrip && ![self isTall]) return base;
     return round(base * [SLSettings shared].fontScale);
 }
 
