@@ -3,6 +3,7 @@
 #import "SLSettings.h"
 #import "SLLyricsProvider.h"
 #import "SLDebug.h"
+#import "SLUpdates.h"
 
 extern UIWindow *SLKeyWindow(void);
 
@@ -119,6 +120,16 @@ extern UIWindow *SLKeyWindow(void);
     [reload addTarget:self action:@selector(reloadTapped) forControlEvents:UIControlEventTouchUpInside];
     [stack addArrangedSubview:reload];
 
+    UIButton *update = [UIButton buttonWithType:UIButtonTypeSystem];
+    [update setTitle:SLLoc(@"upd_check") forState:UIControlStateNormal];
+    update.titleLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
+    update.tintColor = UIColor.whiteColor;
+    update.backgroundColor = [UIColor colorWithWhite:1 alpha:0.12];
+    update.layer.cornerRadius = 12;
+    [update.heightAnchor constraintEqualToConstant:46].active = YES;
+    [update addTarget:self action:@selector(checkUpdates:) forControlEvents:UIControlEventTouchUpInside];
+    [stack addArrangedSubview:update];
+
     UIButton *debug = [UIButton buttonWithType:UIButtonTypeSystem];
     [debug setTitle:@"Export debug" forState:UIControlStateNormal];
     debug.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
@@ -130,6 +141,8 @@ extern UIWindow *SLKeyWindow(void);
     UILabel *hint = [self caption:SLLoc(@"hint")];
     hint.numberOfLines = 0;
     [stack addArrangedSubview:hint];
+
+    [stack addArrangedSubview:[self caption:SLLocFormat(@"upd_version", [SLUpdates currentVersion])]];
 }
 
 - (UILabel *)caption:(NSString *)text {
@@ -170,6 +183,20 @@ extern UIWindow *SLKeyWindow(void);
 - (void)glowChanged:(UISwitch *)s { [SLSettings shared].wordGlow = s.on; }
 - (void)bgChanged:(UISwitch *)s { [SLSettings shared].dynamicBackground = s.on; }
 - (void)exportDebug:(UIButton *)sender { SLDebugShare(self, sender); }
+
+- (void)checkUpdates:(UIButton *)sender {
+    sender.enabled = NO;
+    __weak typeof(self) weakSelf = self;
+    [SLUpdates check:^(SLUpdateInfo *info, BOOL failed) {
+        sender.enabled = YES;
+        typeof(self) me = weakSelf;
+        if (!me) return;
+        if (info) { [SLUpdates presentUpdate:info from:me]; return; }
+        UIAlertController *a = [UIAlertController alertControllerWithTitle:nil message:SLLoc(failed ? @"upd_failed" : @"upd_latest") preferredStyle:UIAlertControllerStyleAlert];
+        [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+        [me presentViewController:a animated:YES completion:nil];
+    }];
+}
 
 - (void)closeTapped { [self dismissViewControllerAnimated:YES completion:nil]; }
 

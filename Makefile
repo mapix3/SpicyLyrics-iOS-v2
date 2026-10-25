@@ -8,7 +8,7 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = SpicyLyricsiOS
 SpicyLyricsiOS_FILES = Tweak.x $(wildcard Sources/*.m) $(wildcard Sources/*.c)
-SpicyLyricsiOS_CFLAGS = -fobjc-arc -ISources -Wno-deprecated-declarations
+SpicyLyricsiOS_CFLAGS = -fobjc-arc -ISources -Wno-deprecated-declarations -DSL_VERSION='"$(shell sed -n 's/^Version: //p' control)"'
 SpicyLyricsiOS_FRAMEWORKS = UIKit MediaPlayer QuartzCore CoreImage
 
 include $(THEOS_MAKE_PATH)/tweak.mk

@@ -1,0 +1,107 @@
+name: Publish update
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes_en:
+        description: "What's new (English)"
+        required: false
+        type: string
+      notes_ru:
+        description: "Что нового (русский)"
+        required: false
+        type: string
+      ipa_url:
+        description: "Direct https link to the IPA (optional)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-update
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download the latest build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build.yml --branch main --status success --limit 1 --json databaseId,headSha --jq '.[0].databaseId')"
+          [ -n "$RUN" ] || { echo "::error::No successful Build run on main"; exit 1; }
+          gh run download "$RUN" --repo "$GITHUB_REPOSITORY" --name SpicyLyricsiOS --dir packages
+          ls -la packages
+
+      - name: Check the build
+        env:
+          SPICY_PROXY_URL: ${{ vars.SPICY_PROXY_URL }}
+        run: |
+          set -euo pipefail
+          [ -n "$SPICY_PROXY_URL" ] || { echo "::error::Set the SPICY_PROXY_URL variable so no API key ends up in a public release"; exit 1; }
+          grep -q "$SPICY_PROXY_URL" packages/SpicyLyricsiOS-sideload.dylib || { echo "::error::The build has no proxy URL; run Build again after setting SPICY_PROXY_URL"; exit 1; }
+          VERSION="$(sed -n 's/^Version: //p' control)"
+          strings packages/SpicyLyricsiOS-sideload.dylib | grep -qx "$VERSION" || { echo "::error::The latest build is not version $VERSION; wait for Build to finish"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES_EN: ${{ inputs.notes_en }}
+          NOTES_RU: ${{ inputs.notes_ru }}
+        run: |
+          set -euo pipefail
+          TAG="v$VERSION"
+          BODY="${NOTES_EN:-SpicyLyricsiOS $VERSION}"
+          [ -n "$NOTES_RU" ] && BODY="$BODY"$'\n\n'"$NOTES_RU"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" packages/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$BODY" --latest
+          else
+            gh release create "$TAG" packages/* --repo "$GITHUB_REPOSITORY" --title "SpicyLyricsiOS $VERSION" --notes "$BODY" --latest
+          fi
+
+      - name: Write update.json
+        env:
+          NOTES_EN: ${{ inputs.notes_en }}
+          NOTES_RU: ${{ inputs.notes_ru }}
+          IPA_URL: ${{ inputs.ipa_url }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          ipa = os.environ.get('IPA_URL', '').strip()
+          if ipa and not ipa.startswith('https://'):
+              raise SystemExit('ipa_url must start with https://')
+          notes = {k: v for k, v in (('en', os.environ.get('NOTES_EN', '')), ('ru', os.environ.get('NOTES_RU', ''))) if v.strip()}
+          manifest = {
+              'version': os.environ['VERSION'],
+              'url': 'https://github.com/%s/releases/tag/v%s' % (os.environ['GITHUB_REPOSITORY'], os.environ['VERSION']),
+          }
+          if notes:
+              manifest['notes'] = notes
+          if ipa:
+              manifest['ipa'] = ipa
+          open('update.json', 'w').write(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n')
+          PY
+          cat update.json
+
+      - name: Commit update.json
+        run: |
+          set -euo pipefail
+          git config user.name "mapix3"
+          git config user.email "soloviovsemen27@gmail.com"
+          git add update.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Initial commit"
+          git push origin HEAD:main

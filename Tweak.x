@@ -10,6 +10,7 @@
 #import "Sources/SLWidgetBridge.h"
 #import "Sources/SLLyricsViewController.h"
 #import "Sources/SLLyricsProvider.h"
+#import "Sources/SLUpdates.h"
 
 static BOOL SLAddingHandler;
 
@@ -131,6 +132,7 @@ static void SLInstallSpotifyHooks(void) {
         [nc addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue]
                     usingBlock:^(NSNotification *n) {
             SLInstallSpotifyHooks();
+            [SLUpdates checkOnLaunch];
         }];
         [nc addObserverForName:SLTrackDidChangeNotification object:nil queue:[NSOperationQueue mainQueue]
                     usingBlock:^(NSNotification *n) {
