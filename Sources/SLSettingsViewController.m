@@ -22,7 +22,11 @@ extern UIWindow *SLKeyWindow(void);
         UISheetPresentationController *sheet = vc.sheetPresentationController;
         sheet.detents = @[UISheetPresentationControllerDetent.mediumDetent, UISheetPresentationControllerDetent.largeDetent];
         sheet.prefersGrabberVisible = YES;
+        sheet.prefersEdgeAttachedInCompactHeight = YES;
+        sheet.widthFollowsPreferredContentSizeWhenEdgeAttached = YES;
+        sheet.prefersScrollingExpandsWhenScrolledToEdge = NO;
     }
+    vc.preferredContentSize = CGSizeMake(440, 0);
 #pragma clang diagnostic pop
     [top presentViewController:vc animated:YES completion:nil];
 }
@@ -50,15 +54,34 @@ extern UIWindow *SLKeyWindow(void);
         [scroll.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:28],
         [stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-28],
-        [stack.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:22],
-        [stack.trailingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.trailingAnchor constant:-22],
+        [stack.centerXAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.centerXAnchor],
+        [stack.widthAnchor constraintLessThanOrEqualToConstant:480],
+        [stack.leadingAnchor constraintGreaterThanOrEqualToAnchor:scroll.safeAreaLayoutGuide.leadingAnchor constant:22],
+        [stack.trailingAnchor constraintLessThanOrEqualToAnchor:scroll.safeAreaLayoutGuide.trailingAnchor constant:-22],
     ]];
+    NSLayoutConstraint *fill = [stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor constant:-44];
+    fill.priority = UILayoutPriorityDefaultHigh;
+    fill.active = YES;
 
+    UIStackView *head = [UIStackView new];
+    head.axis = UILayoutConstraintAxisHorizontal;
+    head.alignment = UIStackViewAlignmentCenter;
     UILabel *title = [UILabel new];
     title.text = @"Spicy Lyrics";
     title.font = [UIFont systemFontOfSize:26 weight:UIFontWeightHeavy];
     title.textColor = UIColor.whiteColor;
-    [stack addArrangedSubview:title];
+    UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
+    UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightBold];
+    [close setImage:[UIImage systemImageNamed:@"xmark" withConfiguration:cfg] forState:UIControlStateNormal];
+    close.tintColor = UIColor.whiteColor;
+    close.backgroundColor = [UIColor colorWithWhite:1 alpha:0.12];
+    close.layer.cornerRadius = 16;
+    [close.widthAnchor constraintEqualToConstant:32].active = YES;
+    [close.heightAnchor constraintEqualToConstant:32].active = YES;
+    [close addTarget:self action:@selector(closeTapped) forControlEvents:UIControlEventTouchUpInside];
+    [head addArrangedSubview:title];
+    [head addArrangedSubview:close];
+    [stack addArrangedSubview:head];
 
     [stack addArrangedSubview:[self caption:SLLoc(@"size")]];
     UISlider *size = [UISlider new];
@@ -147,6 +170,10 @@ extern UIWindow *SLKeyWindow(void);
 - (void)glowChanged:(UISwitch *)s { [SLSettings shared].wordGlow = s.on; }
 - (void)bgChanged:(UISwitch *)s { [SLSettings shared].dynamicBackground = s.on; }
 - (void)exportDebug:(UIButton *)sender { SLDebugShare(self, sender); }
+
+- (void)closeTapped { [self dismissViewControllerAnimated:YES completion:nil]; }
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAllButUpsideDown; }
 
 - (void)reloadTapped {
     [self reloadAll];
