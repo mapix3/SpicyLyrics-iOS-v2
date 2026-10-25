@@ -9,6 +9,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (BOOL)seekTo:(double)seconds;
 + (BOOL)togglePlayPause;
++ (BOOL)nextTrack;
++ (BOOL)previousTrack;
 @end
 
 NS_ASSUME_NONNULL_END

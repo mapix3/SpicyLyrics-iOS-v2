@@ -133,4 +133,21 @@ static void *SLMediaRemote(void) {
     return ok;
 }
 
++ (BOOL)sendSimple:(MPRemoteCommand *)cmd mediaRemote:(int)code {
+    BOOL ok = [self fire:cmd event:SLMakeEvent(@"MPRemoteCommandEvent", cmd, @{})];
+    if (!ok) {
+        MRSendCommandFn fn = (MRSendCommandFn)dlsym(SLMediaRemote(), "MRMediaRemoteSendCommand");
+        if (fn) ok = fn(code, NULL);
+    }
+    return ok;
+}
+
++ (BOOL)nextTrack {
+    return [self sendSimple:[MPRemoteCommandCenter sharedCommandCenter].nextTrackCommand mediaRemote:4];
+}
+
++ (BOOL)previousTrack {
+    return [self sendSimple:[MPRemoteCommandCenter sharedCommandCenter].previousTrackCommand mediaRemote:5];
+}
+
 @end
